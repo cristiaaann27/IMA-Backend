@@ -1,0 +1,65 @@
+DESPLIEGUE BACKEND EN EC2
+=========================
+
+1. CONFIGURACIÓN INICIAL EC2 (solo primera vez):
+   chmod +x setup-ec2.sh
+   ./setup-ec2.sh
+   # Cerrar sesión y volver a entrar
+
+2. CLONAR REPOSITORIO:
+   git clone <tu-repo>
+   cd proyecto
+
+3. CONFIGURAR VARIABLES DE ENTORNO:
+   cp .env.example .env
+   nano .env
+   # Editar ALLOWED_ORIGINS con tu dominio
+
+4. SUBIR DATOS Y MODELOS:
+   # Copiar datos raw para entrenamiento
+   scp -i ima.pem data/raw/*.csv ubuntu@<ip-ec2>:~/proyecto/data/raw/
+   
+   # Copiar modelos pre-entrenados (si existen)
+   scp -i ima.pem models/* ubuntu@<ip-ec2>:~/proyecto/models/
+
+5. DESPLEGAR:
+   chmod +x deploy.sh
+   ./deploy.sh
+
+6. VERIFICAR:
+   docker-compose ps
+   docker-compose logs -f
+
+7. COMANDOS ÚTILES:
+   # Ver logs
+   docker-compose logs -f backend
+   docker-compose logs -f nginx
+   
+   # Reiniciar servicios
+   docker-compose restart
+   
+   # Detener servicios
+   docker-compose down
+   
+   # Actualizar código
+   git pull
+   ./deploy.sh
+
+8. ENTRENAR MODELOS:
+   # Opción 1: Usar script interactivo (recomendado)
+   chmod +x train.sh
+   ./train.sh
+   
+   # Opción 2: Comandos directos
+   docker-compose exec backend python -m src all              # Pipeline completo
+   docker-compose exec backend python -m src etl              # Solo ETL
+   docker-compose exec backend python -m src features         # Solo features
+   docker-compose exec backend python -m src train-lstm       # Solo LSTM
+   docker-compose exec backend python -m src train-xgboost    # Solo XGBoost
+   
+   # Opción 3: Modo interactivo
+   docker-compose exec backend bash
+   python -m src all
+   exit
+
+API disponible en: http://<ip-ec2>
