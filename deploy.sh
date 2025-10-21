@@ -20,5 +20,5 @@ echo "Verificando estado de los servicios..."
 docker-compose ps
 
 echo "=== Despliegue completado ==="
-echo "API disponible en http://localhost"
+echo "API disponible en http://98.81.248.198/api/v1"
 echo "Logs: docker-compose logs -f"
