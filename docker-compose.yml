@@ -1,0 +1,45 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: precipitation-api
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./reports:/app/reports
+    environment:
+      - ENVIRONMENT=production
+      - API_PREFIX=/api/v1
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://ima.up.railway.app}
+    env_file:
+      - .env
+    networks:
+      - precipitation-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://98.81.248.198/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  nginx:
+    image: nginx:alpine
+    container_name: precipitation-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      - backend
+    networks:
+      - precipitation-network
+
+networks:
+  precipitation-network:
+    driver: bridge
