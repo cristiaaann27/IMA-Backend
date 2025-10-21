@@ -6,6 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copiar archivos de dependencias
@@ -19,7 +20,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app/ ./app/
 COPY src/ ./src/
 
-# Crear directorios necesarios
+# Crear directorios necesarios (estos serán montados como volúmenes en producción)
 RUN mkdir -p models data/curated data/predictions data/processed data/raw reports
 
 # Exponer puerto

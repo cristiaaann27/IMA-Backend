@@ -29,11 +29,11 @@ sudo usermod -aG docker $USER
 echo "Instalando Git..."
 sudo apt-get install -y git
 
-# Crear directorios necesarios
+# Crear directorios necesarios (se montarán como volúmenes en Docker)
 echo "Creando estructura de directorios..."
-mkdir -p ~/proyecto/models
-mkdir -p ~/proyecto/data/{raw,processed,curated,predictions}
-mkdir -p ~/proyecto/reports
+mkdir -p ~/models
+mkdir -p ~/data/{raw,processed,curated,predictions}
+mkdir -p ~/reports
 
 echo "=== Configuración completada ==="
 echo "IMPORTANTE: Cierra sesión y vuelve a entrar para aplicar permisos de Docker"
