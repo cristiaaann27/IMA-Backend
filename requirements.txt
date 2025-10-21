@@ -6,6 +6,7 @@ pyarrow==21.0.0
 torch==2.8.0
 xgboost==3.0.5
 matplotlib==3.10.6
+seaborn==0.13.2
 fastapi==0.110.0
 uvicorn[standard]==0.37.0
 gunicorn==23.0.0

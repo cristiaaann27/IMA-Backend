@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build:
@@ -16,7 +14,7 @@ services:
     environment:
       - ENVIRONMENT=production
       - API_PREFIX=/api/v1
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://ima.up.railway.app}
     env_file:
       - .env
     networks:
