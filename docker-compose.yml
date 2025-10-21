@@ -8,9 +8,9 @@ services:
     expose:
       - "8000"
     volumes:
-      - ~/models:/app/models
-      - ~/data:/app/data
-      - ~/reports:/app/reports
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./reports:/app/reports
     environment:
       - ENVIRONMENT=production
       - API_PREFIX=/api/v1
