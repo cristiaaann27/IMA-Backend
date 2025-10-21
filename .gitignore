@@ -30,9 +30,12 @@ Thumbs.db
 *.log
 reports/*.log
 
-# Data
-data/predictions/*.parquet
-data/predictions/*.csv
+# Data - ignorar carpetas locales (se usan externas)
+data/
+reports/
+models/*.pth
+models/*.json
+models/*.pkl
 
 # Tests
 .pytest_cache/
