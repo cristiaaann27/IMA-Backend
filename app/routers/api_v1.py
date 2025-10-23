@@ -613,14 +613,7 @@ async def evaluate_alerts(
         
         # Convertir alertas a formato de respuesta
         alert_infos = [
-            WeatherAlertInfo(
-                level=alert.level.value,
-                variable=alert.variable,
-                value=alert.value,
-                threshold=alert.threshold,
-                message=alert.message,
-                timestamp=alert.timestamp.isoformat()
-            )
+            WeatherAlertInfo(**alert.to_dict())
             for alert in alerts
         ]
         
