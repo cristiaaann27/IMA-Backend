@@ -15,10 +15,11 @@ class AlertSubscription:
         self,
         subscription_id: str,
         user_id: str,
-        min_level: str = "media",
+        min_level: str = "medio",
         variables: Optional[List[str]] = None,
         enabled: bool = True,
-        created_at: Optional[str] = None
+        created_at: Optional[str] = None,
+        notification_frequency: Optional[Dict[str, int]] = None
     ):
         self.subscription_id = subscription_id
         self.user_id = user_id
@@ -26,6 +27,13 @@ class AlertSubscription:
         self.variables = variables or []  # [] significa todas las variables
         self.enabled = enabled
         self.created_at = created_at or datetime.now(timezone.utc).isoformat()
+        # Frecuencia de notificaciones en minutos por nivel
+        self.notification_frequency = notification_frequency or {
+            "bajo": 1440,      # 24 horas (diaria)
+            "medio": 720,      # 12 horas
+            "alto": 180,       # 3 horas
+            "critico": 30      # 30 minutos (tiempo real)
+        }
     
     def to_dict(self) -> dict:
         return {
@@ -34,7 +42,8 @@ class AlertSubscription:
             "min_level": self.min_level,
             "variables": self.variables,
             "enabled": self.enabled,
-            "created_at": self.created_at
+            "created_at": self.created_at,
+            "notification_frequency": self.notification_frequency
         }
     
     @classmethod
@@ -43,12 +52,12 @@ class AlertSubscription:
         return cls(**data)
     
     def matches_alert(self, alert_level: str, variable: str) -> bool:
- 
+        """Verifica si una alerta coincide con esta suscripción."""
         if not self.enabled:
             return False
         
         # Verificar nivel
-        level_order = {"baja": 1, "media": 2, "alta": 3, "critica": 4}
+        level_order = {"bajo": 1, "medio": 2, "alto": 3, "critico": 4}
         if level_order.get(alert_level, 0) < level_order.get(self.min_level, 0):
             return False
         
@@ -57,6 +66,10 @@ class AlertSubscription:
             return False
         
         return True
+    
+    def get_notification_interval(self, alert_level: str) -> int:
+        """Obtiene el intervalo de notificación en minutos para un nivel de alerta."""
+        return self.notification_frequency.get(alert_level, 720)
 
 
 class SubscriptionService:
@@ -97,8 +110,9 @@ class SubscriptionService:
     def create_subscription(
         self,
         user_id: str,
-        min_level: str = "media",
-        variables: Optional[List[str]] = None
+        min_level: str = "medio",
+        variables: Optional[List[str]] = None,
+        notification_frequency: Optional[Dict[str, int]] = None
     ) -> AlertSubscription:
 
         subscription_id = f"sub_{user_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -114,7 +128,8 @@ class SubscriptionService:
             subscription_id=subscription_id,
             user_id=user_id,
             min_level=min_level,
-            variables=variables or []
+            variables=variables or [],
+            notification_frequency=notification_frequency
         )
         
         self.subscriptions[subscription_id] = subscription
@@ -146,7 +161,8 @@ class SubscriptionService:
         subscription_id: str,
         min_level: Optional[str] = None,
         variables: Optional[List[str]] = None,
-        enabled: Optional[bool] = None
+        enabled: Optional[bool] = None,
+        notification_frequency: Optional[Dict[str, int]] = None
     ) -> Optional[AlertSubscription]:
         subscription = self.subscriptions.get(subscription_id)
         if not subscription:
@@ -158,6 +174,8 @@ class SubscriptionService:
             subscription.variables = variables
         if enabled is not None:
             subscription.enabled = enabled
+        if notification_frequency is not None:
+            subscription.notification_frequency = notification_frequency
         
         self._save_subscriptions()
         logger.info(f"Suscripción actualizada: {subscription_id}")

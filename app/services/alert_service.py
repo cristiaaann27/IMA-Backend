@@ -34,13 +34,24 @@ class WeatherAlert:
     
     def to_dict(self) -> dict:
         """Convierte la alerta a diccionario."""
+        # Determinar minutos hasta próxima actualización según nivel
+        update_intervals = {
+            "bajo": 1440,      # 24 horas
+            "medio": 720,      # 12 horas
+            "alto": 180,       # 3 horas
+            "critico": 30      # 30 minutos
+        }
+        
         return {
             "level": self.level.value,
             "variable": self.variable,
             "value": round(self.value, 2),
             "threshold": round(self.threshold, 2),
             "message": self.message,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
+            "detection_time": self.timestamp.strftime("%H:%M"),
+            "next_update_minutes": update_intervals.get(self.level.value, 720),
+            "color": self.level.color
         }
 
 
@@ -50,26 +61,26 @@ class AlertService:
     # Umbrales para variables climáticas
     THRESHOLDS = {
         "rh_2m_pct": {
-            "media": 80.0,  # Humedad >= 80% es nivel MEDIA
-            "alta": 90.0,   # Humedad >= 90% es nivel ALTA
+            "media": 80.0,  # Humedad >= 80% es nivel MEDIO
+            "alta": 90.0,   # Humedad >= 90% es nivel ALTO
         },
         "temp_2m_c": {
-            "media_low": 10.0,   # Temperatura <= 10°C es nivel MEDIA
-            "alta_low": 5.0,     # Temperatura <= 5°C es nivel ALTA
-            "media_high": 30.0,  # Temperatura >= 30°C es nivel MEDIA
-            "alta_high": 35.0,   # Temperatura >= 35°C es nivel ALTA
+            "media_low": 10.0,   # Temperatura <= 10°C es nivel MEDIO
+            "alta_low": 5.0,     # Temperatura <= 5°C es nivel ALTO
+            "media_high": 30.0,  # Temperatura >= 30°C es nivel MEDIO
+            "alta_high": 35.0,   # Temperatura >= 35°C es nivel ALTO
         },
         "wind_speed_2m_ms": {
-            "media": 10.0,  # Viento >= 10 m/s es nivel MEDIA
-            "alta": 15.0,   # Viento >= 15 m/s es nivel ALTA
+            "media": 10.0,  # Viento >= 10 m/s es nivel MEDIO
+            "alta": 15.0,   # Viento >= 15 m/s es nivel ALTO
         },
         "temp_delta": {
-            "media": 3.0,   # Cambio de temperatura >= 3°C es nivel MEDIA
-            "alta": 5.0,    # Cambio de temperatura >= 5°C es nivel ALTA
+            "media": 3.0,   # Cambio de temperatura >= 3°C es nivel MEDIO
+            "alta": 5.0,    # Cambio de temperatura >= 5°C es nivel ALTO
         },
         "rh_delta": {
-            "media": 15.0,  # Cambio de humedad >= 15% es nivel MEDIA
-            "alta": 25.0,   # Cambio de humedad >= 25% es nivel ALTA
+            "media": 15.0,  # Cambio de humedad >= 15% es nivel MEDIO
+            "alta": 25.0,   # Cambio de humedad >= 25% es nivel ALTO
         }
     }
     
@@ -139,23 +150,30 @@ class AlertService:
     def _evaluate_humidity(self, rh: float, timestamp: datetime) -> List[WeatherAlert]:
         """Evalúa la humedad relativa."""
         alerts = []
+        hora_deteccion = timestamp.strftime("%H:%M")
         
         if rh >= self.THRESHOLDS["rh_2m_pct"]["alta"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Humedad Relativa",
                 value=rh,
                 threshold=self.THRESHOLDS["rh_2m_pct"]["alta"],
-                message=f"⚠️ ALERTA ALTA: Humedad muy elevada ({rh:.1f}%). Alto riesgo de precipitación.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó humedad elevada ({rh:.1f}%), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Lluvias intensas detectadas. Evita transitar o realizar labores cerca de riberas o quebradas. Mantén encendido el celular y verifica rutas seguras hacia zonas altas.",
                 timestamp=timestamp
             ))
         elif rh >= self.THRESHOLDS["rh_2m_pct"]["media"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Humedad Relativa",
                 value=rh,
                 threshold=self.THRESHOLDS["rh_2m_pct"]["media"],
-                message=f"⚡ ALERTA MEDIA: Humedad elevada ({rh:.1f}%). Posible precipitación.",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó humedad moderada ({rh:.1f}%), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Se registran lluvias moderadas. Evita acumular residuos o materiales cerca de desagües. Permanece atento a actualizaciones del sistema.",
                 timestamp=timestamp
             ))
         
@@ -164,44 +182,57 @@ class AlertService:
     def _evaluate_temperature(self, temp: float, timestamp: datetime) -> List[WeatherAlert]:
         """Evalúa la temperatura."""
         alerts = []
+        hora_deteccion = timestamp.strftime("%H:%M")
         
         # Temperaturas bajas
         if temp <= self.THRESHOLDS["temp_2m_c"]["alta_low"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Temperatura",
                 value=temp,
                 threshold=self.THRESHOLDS["temp_2m_c"]["alta_low"],
-                message=f"❄️ ALERTA ALTA: Temperatura muy baja ({temp:.1f}°C). Riesgo de heladas.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó temperatura muy baja ({temp:.1f}°C), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Protege cultivos sensibles cubriéndolos. Mantente informado por los canales oficiales del IDEAM.",
                 timestamp=timestamp
             ))
         elif temp <= self.THRESHOLDS["temp_2m_c"]["media_low"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Temperatura",
                 value=temp,
                 threshold=self.THRESHOLDS["temp_2m_c"]["media_low"],
-                message=f"🌡️ ALERTA MEDIA: Temperatura baja ({temp:.1f}°C).",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó temperatura baja ({temp:.1f}°C), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Retrasa labores agrícolas en zonas bajas hasta que el terreno se estabilice.",
                 timestamp=timestamp
             ))
         
         # Temperaturas altas
         if temp >= self.THRESHOLDS["temp_2m_c"]["alta_high"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Temperatura",
                 value=temp,
                 threshold=self.THRESHOLDS["temp_2m_c"]["alta_high"],
-                message=f"🔥 ALERTA ALTA: Temperatura muy elevada ({temp:.1f}°C). Riesgo de estrés térmico.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó temperatura muy elevada ({temp:.1f}°C), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Recuerda hidratarte y protegerte del sol durante las actividades agrícolas. Prepara un kit de emergencia.",
                 timestamp=timestamp
             ))
         elif temp >= self.THRESHOLDS["temp_2m_c"]["media_high"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Temperatura",
                 value=temp,
                 threshold=self.THRESHOLDS["temp_2m_c"]["media_high"],
-                message=f"☀️ ALERTA MEDIA: Temperatura elevada ({temp:.1f}°C).",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó temperatura elevada ({temp:.1f}°C), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Recuerda hidratarte y protegerte del sol. Ideal para labores agrícolas con precaución.",
                 timestamp=timestamp
             ))
         
@@ -210,23 +241,30 @@ class AlertService:
     def _evaluate_wind_speed(self, wind_speed: float, timestamp: datetime) -> List[WeatherAlert]:
         """Evalúa la velocidad del viento."""
         alerts = []
+        hora_deteccion = timestamp.strftime("%H:%M")
         
         if wind_speed >= self.THRESHOLDS["wind_speed_2m_ms"]["alta"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Velocidad del Viento",
                 value=wind_speed,
                 threshold=self.THRESHOLDS["wind_speed_2m_ms"]["alta"],
-                message=f"💨 ALERTA ALTA: Vientos muy fuertes ({wind_speed:.1f} m/s). Riesgo de daños.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó viento fuerte ({wind_speed:.1f} m/s), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Evita trabajar con maquinaria cerca de zonas ribereñas o inestables. Asegura estructuras y equipos.",
                 timestamp=timestamp
             ))
         elif wind_speed >= self.THRESHOLDS["wind_speed_2m_ms"]["media"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Velocidad del Viento",
                 value=wind_speed,
                 threshold=self.THRESHOLDS["wind_speed_2m_ms"]["media"],
-                message=f"🌬️ ALERTA MEDIA: Vientos moderados a fuertes ({wind_speed:.1f} m/s).",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó viento moderado ({wind_speed:.1f} m/s), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Revisa el estado de techos y canaletas para prevenir filtraciones.",
                 timestamp=timestamp
             ))
         
@@ -240,6 +278,7 @@ class AlertService:
     ) -> List[WeatherAlert]:
         """Evalúa cambios rápidos en variables."""
         alerts = []
+        hora_deteccion = timestamp.strftime("%H:%M")
         
         if len(previous) == 0:
             return alerts
@@ -251,20 +290,26 @@ class AlertService:
         temp_delta = abs(current.temp_2m_c - prev.temp_2m_c)
         if temp_delta >= self.THRESHOLDS["temp_delta"]["alta"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Cambio de Temperatura",
                 value=temp_delta,
                 threshold=self.THRESHOLDS["temp_delta"]["alta"],
-                message=f"📉 ALERTA ALTA: Cambio brusco de temperatura ({temp_delta:.1f}°C). Inestabilidad atmosférica.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó cambio brusco de temperatura ({temp_delta:.1f}°C), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Inestabilidad atmosférica. Mantente informado por los canales oficiales del IDEAM y el Comité Municipal de Gestión del Riesgo.",
                 timestamp=timestamp
             ))
         elif temp_delta >= self.THRESHOLDS["temp_delta"]["media"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Cambio de Temperatura",
                 value=temp_delta,
                 threshold=self.THRESHOLDS["temp_delta"]["media"],
-                message=f"📊 ALERTA MEDIA: Cambio notable de temperatura ({temp_delta:.1f}°C).",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó cambio notable de temperatura ({temp_delta:.1f}°C), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Monitorea de cerca las condiciones climáticas. Comunica a los vecinos sobre las condiciones.",
                 timestamp=timestamp
             ))
         
@@ -272,20 +317,26 @@ class AlertService:
         rh_delta = abs(current.rh_2m_pct - prev.rh_2m_pct)
         if rh_delta >= self.THRESHOLDS["rh_delta"]["alta"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Cambio de Humedad",
                 value=rh_delta,
                 threshold=self.THRESHOLDS["rh_delta"]["alta"],
-                message=f"💧 ALERTA ALTA: Cambio brusco de humedad ({rh_delta:.1f}%). Condiciones cambiantes.",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó cambio brusco de humedad ({rh_delta:.1f}%), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Condiciones cambiantes. Ubica rutas seguras hacia zonas altas y asegúrate de que tu familia conozca el punto de encuentro.",
                 timestamp=timestamp
             ))
         elif rh_delta >= self.THRESHOLDS["rh_delta"]["media"]:
             alerts.append(WeatherAlert(
-                level=AlertLevel.MEDIA,
+                level=AlertLevel.MEDIO,
                 variable="Cambio de Humedad",
                 value=rh_delta,
                 threshold=self.THRESHOLDS["rh_delta"]["media"],
-                message=f"💦 ALERTA MEDIA: Cambio notable de humedad ({rh_delta:.1f}%).",
+                message=f"🟡 Alerta La Dorada - NIVEL MEDIO\n"
+                       f"Se detectó cambio notable de humedad ({rh_delta:.1f}%), nivel de riesgo MEDIO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 12 horas.\n"
+                       f"Recomendación: Se pronostican lluvias continuas en las próximas horas. Revisa el estado de los drenajes o canales.",
                 timestamp=timestamp
             ))
         
@@ -298,6 +349,7 @@ class AlertService:
     ) -> List[WeatherAlert]:
         """Evalúa condiciones combinadas que indican riesgo."""
         alerts = []
+        hora_deteccion = timestamp.strftime("%H:%M")
         
         # Condición: Alta humedad + Temperatura moderada + Viento bajo
         # (Condiciones ideales para precipitación)
@@ -305,22 +357,28 @@ class AlertService:
             15.0 <= current.temp_2m_c <= 25.0 and 
             current.wind_speed_2m_ms < 2.0):
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.ALTO,
                 variable="Condiciones Combinadas",
                 value=current.rh_2m_pct,
                 threshold=85.0,
-                message=f"🌧️ ALERTA ALTA: Condiciones óptimas para precipitación (RH={current.rh_2m_pct:.1f}%, T={current.temp_2m_c:.1f}°C, V={current.wind_speed_2m_ms:.1f}m/s).",
+                message=f"🔴 Alerta La Dorada - NIVEL ALTO\n"
+                       f"Se detectó condiciones óptimas para precipitación (RH={current.rh_2m_pct:.1f}%, T={current.temp_2m_c:.1f}°C, V={current.wind_speed_2m_ms:.1f}m/s), nivel de riesgo ALTO.\n"
+                       f"Detectado desde las {hora_deteccion}. Próxima actualización en 3-6 horas.\n"
+                       f"Recomendación: Lluvias intensas detectadas. Evita cruzar ríos, quebradas o zonas bajas. Prepara un kit de emergencia con documentos, linterna, radio y medicamentos.",
                 timestamp=timestamp
             ))
         
         # Condición: Humedad muy alta + Viento muy bajo (calma)
         if current.rh_2m_pct >= 90.0 and current.wind_speed_2m_ms < 1.0:
             alerts.append(WeatherAlert(
-                level=AlertLevel.ALTA,
+                level=AlertLevel.CRITICO,
                 variable="Condiciones Combinadas",
                 value=current.rh_2m_pct,
                 threshold=90.0,
-                message=f"⚠️ ALERTA ALTA: Calma con humedad extrema. Lluvia inminente probable.",
+                message=f"🔴 Alerta La Dorada - NIVEL CRÍTICO\n"
+                       f"Se detectó calma con humedad extrema ({current.rh_2m_pct:.1f}%), nivel de riesgo CRÍTICO.\n"
+                       f"Detectado desde las {hora_deteccion}. Actualizaciones cada 30 minutos.\n"
+                       f"Recomendación: ¡Emergencia climática! Evacuación inmediata recomendada. Dirígete a los puntos seguros designados por la Alcaldía. Informa tu ubicación a las autoridades.",
                 timestamp=timestamp
             ))
         

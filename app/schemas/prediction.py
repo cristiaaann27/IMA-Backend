@@ -6,14 +6,34 @@ from pydantic import BaseModel, Field, field_validator
 
 
 class AlertLevel(str, Enum):
-    BAJA = "baja"
-    MEDIA = "media"
-    ALTA = "alta"
-    CRITICA = "critica"
+    BAJO = "bajo"
+    MEDIO = "medio"
+    ALTO = "alto"
+    CRITICO = "critico"
     
     @property
     def severity(self) -> int:
-        return {"baja": 0, "media": 1, "alta": 2, "critica": 3}[self.value]
+        return {"bajo": 0, "medio": 1, "alto": 2, "critico": 3}[self.value]
+    
+    @property
+    def color(self) -> str:
+        """Retorna el color según estándares IDEAM."""
+        return {
+            "bajo": "verde",
+            "medio": "amarillo", 
+            "alto": "naranja",
+            "critico": "rojo"
+        }[self.value]
+    
+    @property
+    def descripcion(self) -> str:
+        """Retorna la descripción del nivel según IDEAM."""
+        return {
+            "bajo": "Normalidad sin riesgo",
+            "medio": "Vigilancia / Preventiva",
+            "alto": "Riesgo alto",
+            "critico": "Emergencia / Peligro inminente"
+        }[self.value]
 
 
 class TimeSeriesPoint(BaseModel):
@@ -85,12 +105,12 @@ class PredictionResponse(BaseModel):
                 "prediction_mm_hr": 2.45,
                 "rain_event_prob": 0.87,
                 "diagnosis": {
-                    "level": "alta",
+                    "level": "alto",
                     "triggered_rules": [
                         "RH_HIGH_TEMP_DROP",
                         "HIGH_PRECIP_PRED"
                     ],
-                    "recommendation": "Lluvia probable inminente. Asegurar drenajes..."
+                    "recommendation": "🟠 NIVEL ALTO — Riesgo significativo. Lluvia probable inminente. Asegurar drenajes..."
                 },
                 "latency_ms": 45.3,
                 "timestamp": "2025-01-15T12:00:00Z"
@@ -148,13 +168,13 @@ class ForecastResponse(BaseModel):
                         "timestamp": "2023-01-01T01:00:00",
                         "prediction_mm_hr": 1.2,
                         "rain_event_prob": 0.65,
-                        "diagnosis_level": "media"
+                        "diagnosis_level": "medio"
                     },
                     {
                         "timestamp": "2023-01-01T02:00:00",
                         "prediction_mm_hr": 2.8,
                         "rain_event_prob": 0.82,
-                        "diagnosis_level": "alta"
+                        "diagnosis_level": "alto"
                     }
                 ],
                 "latency_ms": 125.7,
@@ -210,12 +230,12 @@ class DiagnosisResponse(BaseModel):
     model_config = {
         "json_schema_extra": {
             "example": {
-                "level": "alta",
+                "level": "alto",
                 "triggered_rules": [
                     "RH_HIGH_TEMP_DROP: RH=92.0% >= 90.0%, ΔTemp_2h=-1.5°C <= -0.5°C",
                     "WIND_CALM_RH_HIGH: Viento=0.8 m/s <= 1.0, RH=92.0% >= 85.0%"
                 ],
-                "recommendation": "⚠️ ACCIÓN INMEDIATA: Lluvia muy probable...",
+                "recommendation": "🟠 NIVEL ALTO — Riesgo significativo. Lluvia muy probable...",
                 "metrics": {
                     "rh_2m_pct": 92.0,
                     "temp_2m_c": 18.5,

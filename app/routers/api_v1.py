@@ -716,7 +716,8 @@ async def create_subscription(
         subscription = subscription_service.create_subscription(
             user_id=request.user_id,
             min_level=request.min_level,
-            variables=request.variables
+            variables=request.variables,
+            notification_frequency=request.notification_frequency
         )
         
         return SubscriptionResponse(**subscription.to_dict())
@@ -782,7 +783,8 @@ async def update_subscription(
             subscription_id=subscription_id,
             min_level=request.min_level,
             variables=request.variables,
-            enabled=request.enabled
+            enabled=request.enabled,
+            notification_frequency=request.notification_frequency
         )
         
         if not subscription:

@@ -209,20 +209,20 @@ class SmartDiagnosisService:
             Recomendación detallada
         """
         base_recommendations = {
-            AlertLevel.CRITICA: (
-                "[!] CRITICO: Condiciones altamente favorables para lluvia inminente. "
+            AlertLevel.CRITICO: (
+                "🔴 NIVEL CRÍTICO: Condiciones altamente favorables para lluvia inminente. "
                 "Activar protocolos de emergencia, asegurar drenajes, proteger equipos."
             ),
-            AlertLevel.ALTA: (
-                "[ALTA] ALERTA ALTA: Lluvia probable en corto plazo. "
+            AlertLevel.ALTO: (
+                "🟠 NIVEL ALTO: Lluvia probable en corto plazo. "
                 "Asegurar drenajes, alertar a operaciones, proteger equipos expuestos."
             ),
-            AlertLevel.MEDIA: (
-                "[MEDIA] ALERTA MEDIA: Condiciones favorables para desarrollo de lluvia. "
+            AlertLevel.MEDIO: (
+                "🟡 NIVEL MEDIO: Condiciones favorables para desarrollo de lluvia. "
                 "Monitorear de cerca, preparar protocolos de respuesta."
             ),
-            AlertLevel.BAJA: (
-                "[OK] BAJO: Sin senales fuertes de lluvia inminente. "
+            AlertLevel.BAJO: (
+                "🟢 NIVEL BAJO: Sin señales fuertes de lluvia inminente. "
                 "Continuar monitoreo rutinario."
             )
         }
