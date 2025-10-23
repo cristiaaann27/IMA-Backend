@@ -172,13 +172,13 @@ class SmartDiagnosisService:
         
         # Determinar nivel de alerta por score total
         if total_score >= 0.75:
-            alert_level = AlertLevel.CRITICA
+            alert_level = AlertLevel.CRITICO
         elif total_score >= 0.55:
-            alert_level = AlertLevel.ALTA
+            alert_level = AlertLevel.ALTO
         elif total_score >= 0.35:
-            alert_level = AlertLevel.MEDIA
+            alert_level = AlertLevel.MEDIO
         else:
-            alert_level = AlertLevel.BAJA
+            alert_level = AlertLevel.BAJO
         
         # Generar recomendación
         recommendation = self._get_recommendation_adaptive(alert_level, total_score, scores)

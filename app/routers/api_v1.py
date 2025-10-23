@@ -624,15 +624,15 @@ async def evaluate_alerts(
             for alert in alerts
         ]
         
-        # Verificar si hay alertas de nivel MEDIA o superior
+        # Verificar si hay alertas de nivel MEDIO o superior
         has_media_or_higher = any(
-            AlertLevel(alert.level).severity >= AlertLevel.MEDIA.severity
+            AlertLevel(alert.level).severity >= AlertLevel.MEDIO.severity
             for alert in alerts
         )
         
-        # Verificar si hay alertas de nivel ALTA o superior
+        # Verificar si hay alertas de nivel ALTO o superior
         has_alta_or_higher = any(
-            AlertLevel(alert.level).severity >= AlertLevel.ALTA.severity
+            AlertLevel(alert.level).severity >= AlertLevel.ALTO.severity
             for alert in alerts
         )
         
@@ -671,12 +671,12 @@ async def get_active_alerts(_: dict = Depends(get_current_user)):
         
         # Verificar niveles
         has_media_or_higher = any(
-            AlertLevel(alert["level"]).severity >= AlertLevel.MEDIA.severity
+            AlertLevel(alert["level"]).severity >= AlertLevel.MEDIO.severity
             for alert in active_alerts
         )
         
         has_alta_or_higher = any(
-            AlertLevel(alert["level"]).severity >= AlertLevel.ALTA.severity
+            AlertLevel(alert["level"]).severity >= AlertLevel.ALTO.severity
             for alert in active_alerts
         )
         

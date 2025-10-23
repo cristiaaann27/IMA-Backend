@@ -396,7 +396,7 @@ class AlertService:
             if alert.level == level
         ]
     
-    def has_alerts(self, min_level: AlertLevel = AlertLevel.MEDIA) -> bool:
+    def has_alerts(self, min_level: AlertLevel = AlertLevel.MEDIO) -> bool:
         """Verifica si hay alertas activas de un nivel mínimo."""
         min_severity = min_level.severity
         return any(
