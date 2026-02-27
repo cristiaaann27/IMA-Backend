@@ -6,7 +6,7 @@ import pickle
 from pathlib import Path
 from typing import Callable
 
-from .utils import Config, setup_logger, load_dataframe
+from .utils import Config, setup_logger, load_dataframe, get_lstm_defaults
 from .etl import run_etl_pipeline
 from .features import build_features
 from .modeling.train_lstm import prepare_data, train_model, save_model
@@ -127,7 +127,8 @@ def cmd_train_lstm(args):
             learning_rate=args.lr,
             epochs=args.epochs,
             batch_size=args.batch,
-            early_stopping_patience=args.early_stopping
+            early_stopping_patience=args.early_stopping,
+            seed=args.seed
         )
         
         hyperparams = {
@@ -255,6 +256,26 @@ def cmd_predict_xgboost(args):
     return execute_command("Predict XGBoost", execute)
 
 
+def cmd_tune(args):
+    """Ejecuta búsqueda de hiperparámetros con Optuna."""
+    logger.info("Comando: Tune (Optuna)")
+    
+    def execute():
+        from .modeling.optuna_tune import run_tuning
+        best = run_tuning(
+            n_trials=args.trials,
+            timeout=args.timeout,
+            seed=args.seed
+        )
+        print_section("BÚSQUEDA DE HIPERPARÁMETROS COMPLETADA")
+        print(f"Mejor valor combinado: {best.get('best_value', 'N/A'):.4f}")
+        print(f"Resultados guardados en configs/best_hyperparams.json")
+        print("="*60 + "\n")
+        return 0
+    
+    return execute_command("Tune", execute)
+
+
 def cmd_cleanup(args):
     """Ejecuta limpieza del sistema."""
     logger.info("Comando: Cleanup")
@@ -332,17 +353,19 @@ def main():
     parser_features.add_argument("--rolling-windows", type=int, nargs="+", help="Ventanas móviles personalizadas")
     parser_features.set_defaults(func=cmd_features)
     
-    # Comando Train LSTM
+    # Comando Train LSTM (defaults desde configs/hyperparameters.json)
+    hp = get_lstm_defaults()
     parser_train = subparsers.add_parser("train-lstm", help="Entrenar modelo LSTM")
-    parser_train.add_argument("--hidden", type=int, default=64, help="Tamaño de capa oculta")
-    parser_train.add_argument("--layers", type=int, default=2, help="Número de capas LSTM")
-    parser_train.add_argument("--dropout", type=float, default=0.2, help="Tasa de dropout")
-    parser_train.add_argument("--lr", type=float, default=0.001, help="Learning rate")
-    parser_train.add_argument("--epochs", type=int, default=50, help="Número de épocas")
-    parser_train.add_argument("--batch", type=int, default=64, help="Tamaño de batch")
-    parser_train.add_argument("--lookback", type=int, default=24, help="Ventana lookback")
-    parser_train.add_argument("--horizon", type=int, default=1, help="Horizonte de predicción")
-    parser_train.add_argument("--early-stopping", type=int, default=10, help="Paciencia para early stopping")
+    parser_train.add_argument("--hidden", type=int, default=hp.get("hidden_size", 64), help="Tamaño de capa oculta")
+    parser_train.add_argument("--layers", type=int, default=hp.get("num_layers", 2), help="Número de capas LSTM")
+    parser_train.add_argument("--dropout", type=float, default=hp.get("dropout", 0.2), help="Tasa de dropout")
+    parser_train.add_argument("--lr", type=float, default=hp.get("learning_rate", 0.001), help="Learning rate")
+    parser_train.add_argument("--epochs", type=int, default=hp.get("epochs", 50), help="Número de épocas")
+    parser_train.add_argument("--batch", type=int, default=hp.get("batch_size", 64), help="Tamaño de batch")
+    parser_train.add_argument("--lookback", type=int, default=hp.get("lookback", 24), help="Ventana lookback")
+    parser_train.add_argument("--horizon", type=int, default=hp.get("horizon", 6), help="Horizonte de predicción (pasos futuros)")
+    parser_train.add_argument("--early-stopping", type=int, default=hp.get("early_stopping_patience", 10), help="Paciencia para early stopping")
+    parser_train.add_argument("--seed", type=int, default=hp.get("seed", 42), help="Semilla para reproducibilidad")
     parser_train.add_argument("--train-split", type=float, default=0.7, help="Proporción de train")
     parser_train.add_argument("--val-split", type=float, default=0.15, help="Proporción de validación")
     parser_train.add_argument("--test-split", type=float, default=0.15, help="Proporción de test")
@@ -374,6 +397,13 @@ def main():
     parser_predict_xgb = subparsers.add_parser("predict-xgboost", help="Generar predicciones con XGBoost")
     parser_predict_xgb.set_defaults(func=cmd_predict_xgboost)
     
+    # Comando Tune (Optuna)
+    parser_tune = subparsers.add_parser("tune", help="Búsqueda de hiperparámetros con Optuna")
+    parser_tune.add_argument("--trials", type=int, default=30, help="Número de trials")
+    parser_tune.add_argument("--timeout", type=int, default=None, help="Timeout en segundos")
+    parser_tune.add_argument("--seed", type=int, default=42, help="Semilla para reproducibilidad")
+    parser_tune.set_defaults(func=cmd_tune)
+    
     # Comando Cleanup
     parser_cleanup = subparsers.add_parser("cleanup", help="Limpiar todos los archivos generados")
     parser_cleanup.add_argument("--confirm", action="store_true", help="Confirmar eliminación real de archivos")
@@ -393,8 +423,9 @@ def main():
     parser_all.add_argument("--epochs", type=int, default=50, help="Número de épocas")
     parser_all.add_argument("--batch", type=int, default=64, help="Tamaño de batch")
     parser_all.add_argument("--lookback", type=int, default=24, help="Ventana lookback")
-    parser_all.add_argument("--horizon", type=int, default=1, help="Horizonte de predicción")
+    parser_all.add_argument("--horizon", type=int, default=6, help="Horizonte de predicción (pasos futuros, default: 6 horas)")
     parser_all.add_argument("--early-stopping", type=int, default=10, help="Paciencia para early stopping")
+    parser_all.add_argument("--seed", type=int, default=42, help="Semilla para reproducibilidad")
     parser_all.add_argument("--train-split", type=float, default=0.7, help="Proporción de train")
     parser_all.add_argument("--val-split", type=float, default=0.15, help="Proporción de validación")
     parser_all.add_argument("--test-split", type=float, default=0.15, help="Proporción de test")

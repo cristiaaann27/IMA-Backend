@@ -10,6 +10,7 @@ import pickle
 
 from app.core.config import get_settings
 from app.core.exceptions import ModelNotLoadedException, PredictionException
+from app.services.feature_utils import calculate_rain_probability as _shared_rain_prob
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -98,14 +99,8 @@ class XGBoostService:
         return self.loaded
     
     def _calculate_rain_probability(self, prediction_mm_hr: float) -> float:
-
-        threshold = settings.precip_event_mmhr
-        
-        # Sigmoide: prob = 1 / (1 + exp(-k * (x - threshold)))
-        k = 2.0  # Factor de escala
-        prob = 1.0 / (1.0 + np.exp(-k * (prediction_mm_hr - threshold)))
-        
-        return float(np.clip(prob, 0.0, 1.0))
+        """Delega a feature_utils.calculate_rain_probability (módulo compartido)."""
+        return _shared_rain_prob(prediction_mm_hr)
 
 
 # Instancia singleton

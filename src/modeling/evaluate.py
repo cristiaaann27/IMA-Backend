@@ -16,6 +16,7 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
     precision_recall_fscore_support,
+    fbeta_score,
     confusion_matrix,
     precision_recall_curve,
     auc
@@ -73,11 +74,14 @@ def load_model_artifacts(
     
     # Cargar modelo
     model_arch = metadata["model_architecture"]
+    data_config = metadata.get("data", {})
+    horizon = data_config.get("horizon", 6)
     model = LSTMModel(
         input_size=model_arch["input_size"],
         hidden_size=model_arch["hidden_size"],
         num_layers=model_arch["num_layers"],
-        dropout=model_arch.get("dropout", 0.2)
+        dropout=model_arch.get("dropout", 0.2),
+        output_size=horizon
     )
     model.load_state_dict(torch.load(model_path, map_location="cpu"))
     model.eval()
@@ -208,10 +212,14 @@ def calculate_classification_metrics(
     # Calcular support (número de casos positivos)
     n_positive = int(y_true_binary.sum())
     
+    # F2-score (beta=2, pondera recall más que precision)
+    f2 = fbeta_score(y_true_binary, y_pred_binary, beta=2, zero_division=0)
+    
     return {
         "precision": float(precision),
         "recall": float(recall),
         "f1_score": float(f1),
+        "f2_score": float(f2),
         "support": n_positive,
         "confusion_matrix": cm.tolist(),
         "pr_auc": float(pr_auc),
@@ -354,14 +362,13 @@ def plot_pr_curve(pr_data: Dict, split_name: str) -> Path:
     return output_path
 
 
-def evaluate_model(data_dict: Dict, device: str = "cpu", train_ratio: float = 0.7) -> Dict:
+def evaluate_model(data_dict: Dict, device: str = "cpu") -> Dict:
     """
-    Evalúa el modelo con splits configurables.
+    Evalúa el modelo sobre el conjunto de test original (sin re-split).
     
     Args:
-        data_dict: Diccionario con datos
+        data_dict: Diccionario con datos (debe contener X_test, y_test)
         device: Device para predicciones
-        train_ratio: Ratio de datos para entrenamiento (default: 0.7 = 70%)
     
     Returns:
         Diccionario con métricas
@@ -379,48 +386,33 @@ def evaluate_model(data_dict: Dict, device: str = "cpu", train_ratio: float = 0.
     # Umbral para evento de lluvia
     rain_threshold = config.precip_event_mmhr
     
-    # Combinar datos de validación y test para re-split 70/30
-    X_val = data_dict.get("X_val")
+    # Usar directamente el split de test original (70/15/15)
     X_test = data_dict.get("X_test")
-    y_val = data_dict.get("y_val")
-    y_test = data_dict.get("y_test")
+    y_test_scaled = data_dict.get("y_test")
     
-    # Concatenar val + test
-    X_combined = np.concatenate([X_val, X_test], axis=0)
-    y_combined = np.concatenate([y_val, y_test], axis=0)
-    
-    # Nuevo split 70/30
-    split_idx = int(len(X_combined) * train_ratio)
-    X_eval_train = X_combined[:split_idx]
-    X_eval_test = X_combined[split_idx:]
-    y_eval_train_scaled = y_combined[:split_idx]
-    y_eval_test_scaled = y_combined[split_idx:]
-    
-    logger.info(f"Split configurado: {int(train_ratio*100)}% train / {int((1-train_ratio)*100)}% test")
-    logger.info(f"  Train samples: {len(X_eval_train)}")
-    logger.info(f"  Test samples: {len(X_eval_test)}")
+    logger.info(f"Split original: train={len(data_dict.get('X_train', []))}, "
+                f"val={len(data_dict.get('X_val', []))}, test={len(X_test)}")
     
     results = {
         "metadata": metadata,
         "rain_threshold": rain_threshold,
-        "split_ratio": {"train": train_ratio, "test": 1 - train_ratio},
+        "split_ratio": {"train": 0.70, "val": 0.15, "test": 0.15},
         "splits": {}
     }
     
-    # Evaluar solo en test (70% no se usa, solo para referencia del split)
-    logger.info("\nEvaluando en conjunto de TEST (30%)...")
+    logger.info(f"\nEvaluando en conjunto de TEST ({len(X_test)} muestras)...")
     
     # Predicciones
-    y_pred_scaled = predict_sequences(model, X_eval_test, device)
+    y_pred_scaled = predict_sequences(model, X_test, device)
     
     # Reshape si es necesario
-    if y_eval_test_scaled.ndim == 3:
-        y_eval_test_scaled = y_eval_test_scaled.reshape(-1, y_eval_test_scaled.shape[-1])
+    if y_test_scaled.ndim == 3:
+        y_test_scaled = y_test_scaled.reshape(-1, y_test_scaled.shape[-1])
     if y_pred_scaled.ndim == 3:
         y_pred_scaled = y_pred_scaled.reshape(-1, y_pred_scaled.shape[-1])
     
     # Des-escalar
-    y_true = scaler_y.inverse_transform(y_eval_test_scaled).ravel()
+    y_true = scaler_y.inverse_transform(y_test_scaled).ravel()
     y_pred = scaler_y.inverse_transform(y_pred_scaled).ravel()
     y_pred = np.maximum(y_pred, 0)
     
@@ -454,6 +446,7 @@ def evaluate_model(data_dict: Dict, device: str = "cpu", train_ratio: float = 0.
     logger.info(f"  Precision: {classification_metrics['precision']:.4f}")
     logger.info(f"  Recall:    {classification_metrics['recall']:.4f}")
     logger.info(f"  F1-Score:  {classification_metrics['f1_score']:.4f}")
+    logger.info(f"  F2-Score:  {classification_metrics['f2_score']:.4f}")
     logger.info(f"\nMatriz de confusión:")
     logger.info(f"  TP: {true_positives}, TN: {true_negatives}")
     logger.info(f"  FP: {false_positives}, FN: {false_negatives}")
@@ -467,6 +460,7 @@ def evaluate_model(data_dict: Dict, device: str = "cpu", train_ratio: float = 0.
             "precision": classification_metrics['precision'],
             "recall": classification_metrics['recall'],
             "f1_score": classification_metrics['f1_score'],
+            "f2_score": classification_metrics['f2_score'],
             "support": classification_metrics['support'],
             "confusion_matrix": classification_metrics['confusion_matrix']
         },

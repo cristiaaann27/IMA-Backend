@@ -13,7 +13,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 
-from ..utils import Config, setup_logger, ensure_dir
+from ..utils import Config, setup_logger, ensure_dir, set_global_seed, sanitize_scaled
 from .base import BaseModel, DataPreparator
 
 
@@ -31,14 +31,15 @@ class TimeSeriesDataset(Dataset):
     
     def __init__(self, X: np.ndarray, y: np.ndarray):
         self.X = torch.FloatTensor(X)
-        # Asegurar que y tenga la forma correcta (n_samples, 1)
+        # Asegurar que y tenga la forma correcta (n_samples, horizon)
         if y.ndim == 1:
             self.y = torch.FloatTensor(y).unsqueeze(1)
-        elif y.ndim == 2 and y.shape[1] == 1:
-            # Ya tiene la forma correcta (n_samples, 1)
+        elif y.ndim == 2:
             self.y = torch.FloatTensor(y)
+        elif y.ndim == 3:
+            # (n_samples, horizon, 1) -> (n_samples, horizon)
+            self.y = torch.FloatTensor(y.reshape(y.shape[0], -1))
         else:
-            # Para otros casos, usar reshape
             self.y = torch.FloatTensor(y).reshape(-1, 1)
     
     def __len__(self):
@@ -93,7 +94,7 @@ def create_sequences(
     X: np.ndarray,
     y: np.ndarray,
     lookback: int = 24,
-    horizon: int = 1
+    horizon: int = 6
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Crea secuencias de ventana deslizante para LSTM.
@@ -117,9 +118,12 @@ def create_sequences(
     X_seq = np.array(X_seq)
     y_seq = np.array(y_seq)
     
-    # Asegurar que y_seq tenga la forma correcta
+    # Asegurar que y_seq tenga la forma correcta (n_sequences, horizon)
     if y_seq.ndim == 1:
         y_seq = y_seq.reshape(-1, 1)
+    elif y_seq.ndim == 3 and y_seq.shape[2] == 1:
+        # (n_seq, horizon, 1) -> (n_seq, horizon)
+        y_seq = y_seq.squeeze(-1)
     
     return X_seq, y_seq
 
@@ -129,7 +133,7 @@ def prepare_data(
     target_col: str = "precip_mm_hr",
     feature_cols: Optional[list] = None,
     lookback: int = 24,
-    horizon: int = 1,
+    horizon: int = 6,
     train_split: float = 0.7,
     val_split: float = 0.15,
     test_split: float = 0.15
@@ -187,13 +191,13 @@ def prepare_data(
     scaler_X = StandardScaler()
     scaler_y = StandardScaler()
     
-    X_train = scaler_X.fit_transform(X_train)
-    X_val = scaler_X.transform(X_val)
-    X_test = scaler_X.transform(X_test)
+    X_train = sanitize_scaled(scaler_X.fit_transform(X_train))
+    X_val = sanitize_scaled(scaler_X.transform(X_val))
+    X_test = sanitize_scaled(scaler_X.transform(X_test))
     
-    y_train = scaler_y.fit_transform(y_train)
-    y_val = scaler_y.transform(y_val)
-    y_test = scaler_y.transform(y_test)
+    y_train = sanitize_scaled(scaler_y.fit_transform(y_train))
+    y_val = sanitize_scaled(scaler_y.transform(y_val))
+    y_test = sanitize_scaled(scaler_y.transform(y_test))
     
     # Crear secuencias
     X_train_seq, y_train_seq = create_sequences(X_train, y_train, lookback, horizon)
@@ -228,7 +232,8 @@ def train_model(
     epochs: int = 50,
     batch_size: int = 64,
     early_stopping_patience: int = 10,
-    device: str = None
+    device: str = None,
+    seed: int = 42
 ) -> Tuple[LSTMModel, Dict]:
     """
     Entrena modelo LSTM.
@@ -251,6 +256,10 @@ def train_model(
     logger.info("INICIANDO ENTRENAMIENTO LSTM")
     logger.info("="*60)
     
+    # Fijar semilla para reproducibilidad
+    set_global_seed(seed)
+    logger.info(f"Semilla global fijada: {seed}")
+    
     # Determinar device
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -266,14 +275,17 @@ def train_model(
     
     # Crear modelo
     input_size = data_dict["n_features"]
+    # Determinar horizon desde la forma del target
+    horizon = data_dict["y_train"].shape[1] if data_dict["y_train"].ndim >= 2 else 1
     model = LSTMModel(
         input_size=input_size,
         hidden_size=hidden_size,
         num_layers=num_layers,
-        dropout=dropout
+        dropout=dropout,
+        output_size=horizon
     ).to(device)
     
-    logger.info(f"Modelo creado: input_size={input_size}, hidden_size={hidden_size}, num_layers={num_layers}")
+    logger.info(f"Modelo creado: input_size={input_size}, hidden_size={hidden_size}, num_layers={num_layers}, horizon={horizon}")
     logger.info(f"Parámetros del modelo: {sum(p.numel() for p in model.parameters())}")
     
     # Loss y optimizer
@@ -372,7 +384,7 @@ class LSTMModelWrapper(BaseModel):
         self.scaler_X = None
         self.scaler_y = None
         self.lookback = 24
-        self.horizon = 1
+        self.horizon = 6
         self.feature_cols = []
         
     def train(
@@ -483,10 +495,13 @@ class LSTMModelWrapper(BaseModel):
             arch = metadata.get("model_architecture", {})
             
             # Crear modelo con arquitectura guardada
+            data_config = metadata.get("data", {})
+            horizon = data_config.get("horizon", 6)
             self.model = LSTMModel(
                 input_size=arch.get("input_size", 10),
                 hidden_size=arch.get("hidden_size", 64),
-                num_layers=arch.get("num_layers", 2)
+                num_layers=arch.get("num_layers", 2),
+                output_size=horizon
             )
             
             # Cargar pesos
@@ -497,7 +512,7 @@ class LSTMModelWrapper(BaseModel):
             data_config = metadata.get("data", {})
             self.feature_cols = data_config.get("feature_cols", [])
             self.lookback = data_config.get("lookback", 24)
-            self.horizon = data_config.get("horizon", 1)
+            self.horizon = data_config.get("horizon", 6)
             
             self.is_trained = True
             logger.info(f"Modelo LSTM cargado desde {model_path}")

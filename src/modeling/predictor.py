@@ -24,6 +24,7 @@ class ModelType(Enum):
     """Tipos de modelos disponibles."""
     LSTM = "lstm"
     XGBOOST = "xgboost"
+    HYBRID = "hybrid"
 
 
 class UnifiedPredictor:
@@ -298,3 +299,66 @@ def predict(
     predictor = UnifiedPredictor(model_type)
     predictor.load_model()
     return predictor.predict(input_path, output_dir)
+
+
+class HybridPredictor:
+    """
+    Predictor híbrido que combina LSTM y XGBoost mediante promedio pesado.
+
+    Pesos configurables desde configs/hyperparameters.json (sección 'ensemble').
+    """
+
+    def __init__(self, w_lstm: float = 0.5, w_xgboost: float = 0.5):
+        """
+        Args:
+            w_lstm: Peso para las predicciones del LSTM.
+            w_xgboost: Peso para las predicciones del XGBoost.
+        """
+        self.w_lstm = w_lstm
+        self.w_xgboost = w_xgboost
+        self.lstm_predictor = UnifiedPredictor(ModelType.LSTM)
+        self.xgb_predictor = UnifiedPredictor(ModelType.XGBOOST)
+        self._loaded = False
+
+    def load_models(self, model_dir: Optional[Path] = None):
+        """Carga ambos modelos."""
+        self.lstm_predictor.load_model(model_dir)
+        self.xgb_predictor.load_model(model_dir)
+        self._loaded = True
+        logger.info(
+            f"HybridPredictor cargado (w_lstm={self.w_lstm}, w_xgb={self.w_xgboost})"
+        )
+
+    def predict_single(
+        self,
+        features_lstm: np.ndarray,
+        features_xgb: np.ndarray,
+    ) -> float:
+        """
+        Predicción híbrida para una sola muestra.
+
+        Args:
+            features_lstm: Secuencia LSTM (lookback, n_features).
+            features_xgb: Fila XGBoost (n_features,).
+
+        Returns:
+            Predicción combinada (mm/hr), clipeada a >= 0.
+        """
+        if not self._loaded:
+            raise ValueError("Modelos no cargados. Llama a load_models() primero.")
+
+        pred_lstm = self.lstm_predictor.model_wrapper.predict(
+            features_lstm[np.newaxis, ...]
+        ).ravel()[0]
+
+        pred_xgb = self.xgb_predictor.model_wrapper.predict(
+            features_xgb.reshape(1, -1)
+        ).ravel()[0]
+
+        combined = self.w_lstm * pred_lstm + self.w_xgboost * pred_xgb
+        combined = max(0.0, float(combined))
+
+        logger.debug(
+            f"Hybrid: lstm={pred_lstm:.4f} xgb={pred_xgb:.4f} -> {combined:.4f}"
+        )
+        return combined

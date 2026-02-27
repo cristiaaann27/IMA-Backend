@@ -2,8 +2,51 @@
 
 import pandas as pd
 import numpy as np
+import pandera as pa
+from pandera import Column, Check, Index
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
+
+
+# ---------------------------------------------------------------------------
+# Esquema Pandera para datos meteorológicos crudos
+# ---------------------------------------------------------------------------
+WeatherDataSchema = pa.DataFrameSchema(
+    columns={
+        "timestamp": Column(pa.DateTime, nullable=False, coerce=True),
+        "precip_mm_hr": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(200),
+        ], nullable=True, coerce=True, required=False),
+        "rh_2m_pct": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(100),
+        ], nullable=True, coerce=True, required=False),
+        "temp_2m_c": Column(float, [
+            Check.greater_than_or_equal_to(-40),
+            Check.less_than_or_equal_to(60),
+        ], nullable=True, coerce=True, required=False),
+        "wind_speed_2m_ms": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(100),
+        ], nullable=True, coerce=True, required=False),
+        "wind_dir_2m_deg": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(360),
+        ], nullable=True, coerce=True, required=False),
+        "wind_speed_10m_ms": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(100),
+        ], nullable=True, coerce=True, required=False),
+        "wind_dir_10m_deg": Column(float, [
+            Check.greater_than_or_equal_to(0),
+            Check.less_than_or_equal_to(360),
+        ], nullable=True, coerce=True, required=False),
+    },
+    # Solo validar columnas que existan en el DataFrame
+    strict=False,
+    coerce=True,
+)
 
 
 @dataclass
@@ -53,6 +96,18 @@ class DataValidator:
         warnings = []
         fixed_rows = 0
         
+        # --- Validación Pandera (esquema tipado) ---
+        try:
+            WeatherDataSchema.validate(df, lazy=True)
+        except pa.errors.SchemaErrors as schema_err:
+            for _, row in schema_err.failure_cases.iterrows():
+                col = row.get("column", "unknown")
+                check = row.get("check", "unknown")
+                warnings.append(f"Pandera: columna '{col}' falló check '{check}'")
+        except Exception as e:
+            warnings.append(f"Pandera: error inesperado durante validación: {e}")
+        
+        # --- Validaciones manuales complementarias ---
         # Validar que existe timestamp
         if "timestamp" not in df.columns:
             errors.append("Columna 'timestamp' no encontrada")

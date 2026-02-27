@@ -33,6 +33,7 @@ from app.services.diagnosis_service import DiagnosisService
 from app.services.smart_diagnosis_service import SmartDiagnosisService, get_smart_diagnosis_service
 from app.services.metrics_service import get_metrics_service
 from app.services.xgboost_service import get_xgboost_service
+from app.services.feature_utils import prepare_features as _shared_prepare_features
 from app.services.alert_service import get_alert_service
 from app.services.subscription_service import get_subscription_service
 from app.services.alert_history_service import get_alert_history_service
@@ -69,107 +70,8 @@ alert_history_service = get_alert_history_service()
 
 
 def prepare_xgboost_features(lookback_data: List) -> np.ndarray:
-    """Prepara features para XGBoost usando el mismo feature engineering que LSTM."""
-    from app.schemas.prediction import TimeSeriesPoint
-    
-    if not lookback_data:
-        return np.array([])
-    
-    n_samples = len(lookback_data)
-    n_expected_features = 33  # XGBoost espera 33 features como LSTM
-    
-    # Crear array expandido
-    expanded = np.zeros((n_samples, n_expected_features))
-    
-    for i, point in enumerate(lookback_data):
-        # Features base (0-1)
-        expanded[i, 0] = point.rh_2m_pct
-        expanded[i, 1] = point.temp_2m_c
-        
-        # Features temporales desde timestamp real (2-9)
-        ts = point.timestamp
-        hour = ts.hour
-        month = ts.month
-        day_of_week = ts.weekday()
-        day_of_year = ts.timetuple().tm_yday
-        
-        expanded[i, 2] = hour
-        expanded[i, 3] = month
-        expanded[i, 4] = day_of_week
-        expanded[i, 5] = day_of_year
-        
-        # Codificación cíclica de hora y mes (6-9)
-        expanded[i, 6] = np.sin(2 * np.pi * hour / 24)
-        expanded[i, 7] = np.cos(2 * np.pi * hour / 24)
-        expanded[i, 8] = np.sin(2 * np.pi * month / 12)
-        expanded[i, 9] = np.cos(2 * np.pi * month / 12)
-        
-        # Lags de precipitación (10-14) - asumiendo 0 si no hay datos históricos
-        expanded[i, 10] = 0  # precip_mm_hr_lag_1
-        expanded[i, 11] = 0  # precip_mm_hr_lag_2
-        expanded[i, 12] = 0  # precip_mm_hr_lag_3
-        expanded[i, 13] = 0  # precip_mm_hr_lag_6
-        expanded[i, 14] = 0  # precip_mm_hr_lag_12
-        
-        # Rolling statistics (15-18) - usando RH como aproximación
-        expanded[i, 15] = point.rh_2m_pct  # precip_mm_hr_rolling_mean_3
-        expanded[i, 16] = point.rh_2m_pct * 0.1  # precip_mm_hr_rolling_std_3
-        expanded[i, 17] = point.rh_2m_pct  # precip_mm_hr_rolling_mean_6
-        expanded[i, 18] = point.rh_2m_pct * 0.1  # precip_mm_hr_rolling_std_6
-        
-        # Deltas de precipitación (19-20) - asumiendo 0
-        expanded[i, 19] = 0  # precip_mm_hr_delta_1h
-        expanded[i, 20] = 0  # precip_mm_hr_delta_3h
-        
-        # Feature de interacción RH-Temp (21)
-        expanded[i, 21] = point.rh_2m_pct * point.temp_2m_c
-        
-        # Deltas de temperatura (22-23) - calculados si hay datos previos
-        if i >= 2:
-            expanded[i, 22] = point.temp_2m_c - lookback_data[i-2].temp_2m_c  # delta_2h
-        else:
-            expanded[i, 22] = 0
-        
-        if i >= 6:
-            expanded[i, 23] = point.temp_2m_c - lookback_data[i-6].temp_2m_c  # delta_6h
-        else:
-            expanded[i, 23] = 0
-        
-        # Features adicionales (24-32) - wind_speed, wind_dir y derivados
-        expanded[i, 24] = point.wind_speed_2m_ms
-        expanded[i, 25] = point.wind_dir_2m_deg
-        
-        # Wind components (26-27)
-        wind_rad = np.deg2rad(point.wind_dir_2m_deg)
-        expanded[i, 26] = point.wind_speed_2m_ms * np.sin(wind_rad)  # u_component
-        expanded[i, 27] = point.wind_speed_2m_ms * np.cos(wind_rad)  # v_component
-        
-        # Deltas de viento (28-29)
-        if i >= 1:
-            expanded[i, 28] = point.wind_speed_2m_ms - lookback_data[i-1].wind_speed_2m_ms
-        else:
-            expanded[i, 28] = 0
-        
-        if i >= 3:
-            expanded[i, 29] = point.wind_speed_2m_ms - lookback_data[i-3].wind_speed_2m_ms
-        else:
-            expanded[i, 29] = 0
-        
-        # Deltas de RH (30-31)
-        if i >= 1:
-            expanded[i, 30] = point.rh_2m_pct - lookback_data[i-1].rh_2m_pct
-        else:
-            expanded[i, 30] = 0
-        
-        if i >= 3:
-            expanded[i, 31] = point.rh_2m_pct - lookback_data[i-3].rh_2m_pct
-        else:
-            expanded[i, 31] = 0
-        
-        # Interacción adicional wind-temp (32)
-        expanded[i, 32] = point.wind_speed_2m_ms * point.temp_2m_c
-    
-    return expanded
+    """Delega a feature_utils.prepare_features (módulo compartido)."""
+    return _shared_prepare_features(lookback_data)
 
 
 @router.get("/health", response_model=HealthResponse, tags=["Health"])
@@ -312,16 +214,19 @@ async def forecast(
         horizon = min(request.horizon, settings.max_forecast_horizon)
         forecast_steps = []
         
-        # Ventana inicial
-        current_lookback = request.lookback_data.copy()
+        # Usar predicción multi-paso nativa del modelo LSTM
+        multistep_results = prediction_service.predict_multistep(request.lookback_data)
         
-        for step in range(horizon):
-            # Predecir siguiente paso
-            precip_pred, rain_prob = prediction_service.predict(current_lookback)
-            
-            # Diagnóstico ADAPTATIVO (consistente con /predict)
-            current = current_lookback[-1]
-            previous = current_lookback[:-1] if len(current_lookback) > 1 else []
+        # Diagnóstico base
+        current = request.lookback_data[-1]
+        previous = request.lookback_data[:-1] if len(request.lookback_data) > 1 else []
+        last_ts = request.lookback_data[-1].timestamp
+        
+        # Tomar hasta horizon pasos del resultado nativo
+        n_native_steps = len(multistep_results)
+        
+        for step in range(min(horizon, n_native_steps)):
+            precip_pred, rain_prob = multistep_results[step]
             
             alert_level, _, _, _ = smart_diagnosis_service.diagnose_adaptive(
                 current=current,
@@ -329,9 +234,7 @@ async def forecast(
                 predicted_precip=precip_pred
             )
             
-            # Calcular timestamp (asumiendo frecuencia horaria)
-            last_ts = current_lookback[-1].timestamp
-            next_ts = last_ts + timedelta(hours=1)
+            next_ts = last_ts + timedelta(hours=step + 1)
             
             forecast_steps.append(ForecastStep(
                 timestamp=next_ts,
@@ -339,28 +242,36 @@ async def forecast(
                 rain_event_prob=rain_prob,
                 diagnosis_level=alert_level
             ))
-            
-            # Actualizar ventana: avanzar un paso en el tiempo
-            # En esta versión simplificada propagamos las últimas condiciones observadas
-            next_point = TimeSeriesPoint(
-                timestamp=next_ts,
-                rh_2m_pct=current.rh_2m_pct,
-                temp_2m_c=current.temp_2m_c,
-                wind_speed_2m_ms=current.wind_speed_2m_ms,
-                wind_dir_2m_deg=current.wind_dir_2m_deg,
-            )
-
-            try:
-                lookback_len = model_service.get_lookback()
-            except Exception:
-                lookback_len = len(current_lookback)
-
-            if len(current_lookback) >= lookback_len and lookback_len > 0:
-                # Desplazar ventana manteniendo tamaño fijo
+        
+        # Si el horizon solicitado excede los pasos nativos, usar autoregresivo
+        if horizon > n_native_steps:
+            current_lookback = request.lookback_data.copy()
+            for step in range(n_native_steps, horizon):
+                precip_pred, rain_prob = prediction_service.predict(current_lookback)
+                
+                alert_level, _, _, _ = smart_diagnosis_service.diagnose_adaptive(
+                    current=current,
+                    previous=previous if previous else None,
+                    predicted_precip=precip_pred
+                )
+                
+                next_ts = last_ts + timedelta(hours=step + 1)
+                
+                forecast_steps.append(ForecastStep(
+                    timestamp=next_ts,
+                    prediction_mm_hr=precip_pred,
+                    rain_event_prob=rain_prob,
+                    diagnosis_level=alert_level
+                ))
+                
+                next_point = TimeSeriesPoint(
+                    timestamp=next_ts,
+                    rh_2m_pct=current.rh_2m_pct,
+                    temp_2m_c=current.temp_2m_c,
+                    wind_speed_2m_ms=current.wind_speed_2m_ms,
+                    wind_dir_2m_deg=current.wind_dir_2m_deg,
+                )
                 current_lookback = current_lookback[1:] + [next_point]
-            else:
-                # Aumentar ventana hasta alcanzar lookback
-                current_lookback = current_lookback + [next_point]
             
         latency_ms = (time.time() - start_time) * 1000
         metrics_service.record_forecast(latency_ms)
@@ -587,6 +498,95 @@ async def predict_xgboost(
     except Exception as e:
         metrics_service.record_error("xgboost_prediction_error")
         logger.exception("Error en predicción XGBoost")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+
+@router.post("/predict/hybrid", response_model=PredictionResponse, tags=["Prediction"])
+async def predict_hybrid(
+    request: PredictionRequest,
+    _: dict = Depends(get_current_user)
+):
+    """
+    Predicción híbrida LSTM + XGBoost.
+
+    Combina las predicciones de ambos modelos con promedio pesado
+    (pesos configurables en configs/hyperparameters.json).
+    """
+    start_time = time.time()
+
+    try:
+        if not request.lookback_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="lookback_data no puede estar vacío"
+            )
+
+        # Predicción LSTM (t+1)
+        precip_lstm, _ = prediction_service.predict(request.lookback_data)
+
+        # Predicción XGBoost
+        if not xgboost_service.is_loaded():
+            xgboost_service.load_model()
+
+        features = prepare_xgboost_features(request.lookback_data)
+        if features.shape[0] > 0:
+            features = features[-1]
+        else:
+            raise ValueError("No hay datos válidos para predicción")
+
+        precip_xgb, _ = xgboost_service.predict(features)
+
+        # Combinar con pesos (defaults 0.5/0.5, leídos de config)
+        from src.utils.hyperparams import get_ensemble_defaults
+        ens = get_ensemble_defaults()
+        w_lstm = ens.get("w_lstm", 0.5)
+        w_xgb = ens.get("w_xgboost", 0.5)
+
+        precip_pred = w_lstm * precip_lstm + w_xgb * precip_xgb
+        precip_pred = max(0.0, precip_pred)
+
+        # Probabilidad de lluvia sobre la predicción combinada
+        from app.services.feature_utils import calculate_rain_probability
+        rain_prob = calculate_rain_probability(precip_pred)
+
+        # Diagnóstico
+        current = request.lookback_data[-1]
+        previous = request.lookback_data[:-1] if len(request.lookback_data) > 1 else []
+
+        alert_level, triggered_rules, recommendation, scores = smart_diagnosis_service.diagnose_adaptive(
+            current=current,
+            previous=previous if previous else None,
+            predicted_precip=precip_pred
+        )
+
+        latency_ms = (time.time() - start_time) * 1000
+        metrics_service.record_prediction(latency_ms)
+
+        return PredictionResponse(
+            prediction_mm_hr=precip_pred,
+            rain_event_prob=rain_prob,
+            diagnosis=DiagnosisInfo(
+                level=alert_level,
+                triggered_rules=triggered_rules,
+                recommendation=recommendation
+            ),
+            latency_ms=latency_ms,
+            timestamp=datetime.now(timezone.utc)
+        )
+
+    except ModelNotLoadedException as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        metrics_service.record_error("hybrid_prediction_error")
+        logger.exception("Error en predicción híbrida")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

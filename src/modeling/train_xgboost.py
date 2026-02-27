@@ -16,6 +16,7 @@ from sklearn.metrics import (
     mean_squared_error,
     r2_score,
     precision_recall_fscore_support,
+    fbeta_score,
     roc_auc_score
 )
 from sklearn.model_selection import train_test_split
@@ -122,7 +123,8 @@ def train_xgboost_model(
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
-        verbose=10
+        verbose=10,
+        early_stopping_rounds=10
     )
     
     logger.info("✓ Modelo XGBoost entrenado")
@@ -170,6 +172,9 @@ def evaluate_model(
     except:
         auc = None
     
+    # F2-score (beta=2, pondera recall más que precision)
+    f2 = fbeta_score(y_test_binary, y_pred_binary, beta=2, zero_division=0)
+    
     metrics = {
         'mae': float(mae),
         'rmse': float(rmse),
@@ -178,10 +183,11 @@ def evaluate_model(
         'precision': float(precision),
         'recall': float(recall),
         'f1_score': float(f1),
+        'f2_score': float(f2),
         'auc': float(auc) if auc else None
     }
     
-    logger.info(f"MAE: {mae:.4f}, RMSE: {rmse:.4f}, R²: {r2:.4f}, F1: {f1:.4f}")
+    logger.info(f"MAE: {mae:.4f}, RMSE: {rmse:.4f}, R²: {r2:.4f}, F1: {f1:.4f}, F2: {f2:.4f}")
     
     return metrics
 

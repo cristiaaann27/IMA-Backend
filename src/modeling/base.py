@@ -108,7 +108,8 @@ class BaseModel(ABC):
             mean_absolute_error,
             mean_squared_error,
             r2_score,
-            precision_recall_fscore_support
+            precision_recall_fscore_support,
+            fbeta_score
         )
         
         if not self.is_trained:
@@ -141,6 +142,9 @@ class BaseModel(ABC):
             y_test_binary, y_pred_binary, average='binary', zero_division=0
         )
         
+        # F2-score (beta=2, pondera recall más que precision)
+        f2 = fbeta_score(y_test_binary, y_pred_binary, beta=2, zero_division=0)
+        
         metrics = {
             'mae': float(mae),
             'rmse': float(rmse),
@@ -148,12 +152,13 @@ class BaseModel(ABC):
             'mape': float(mape) if not np.isnan(mape) else None,
             'precision': float(precision),
             'recall': float(recall),
-            'f1_score': float(f1)
+            'f1_score': float(f1),
+            'f2_score': float(f2)
         }
         
         logger.info(f"Evaluación {self.model_name}:")
         logger.info(f"  MAE: {mae:.4f}, RMSE: {rmse:.4f}, R²: {r2:.4f}")
-        logger.info(f"  Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}")
+        logger.info(f"  Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}, F2: {f2:.4f}")
         
         return metrics
     

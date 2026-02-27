@@ -6,51 +6,16 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 
 import torch
-import torch.nn as nn
 
 from app.core.config import get_settings
 from app.core.exceptions import ModelNotLoadedException
 from app.core.logging import get_logger
 from app.repositories.model_repository import ModelRepository, get_model_repository
+from src.modeling.train_lstm import LSTMModel
 
 
 logger = get_logger(__name__)
 settings = get_settings()
-
-
-class LSTMModel(nn.Module):
-    """Modelo LSTM (misma arquitectura que en training)."""
-    
-    def __init__(
-        self,
-        input_size: int,
-        hidden_size: int = 64,
-        num_layers: int = 2,
-        dropout: float = 0.2,
-        output_size: int = 1
-    ):
-        super(LSTMModel, self).__init__()
-        
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-        
-        self.lstm = nn.LSTM(
-            input_size=input_size,
-            hidden_size=hidden_size,
-            num_layers=num_layers,
-            dropout=dropout if num_layers > 1 else 0,
-            batch_first=True
-        )
-        
-        self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(hidden_size, output_size)
-    
-    def forward(self, x):
-        lstm_out, _ = self.lstm(x)
-        last_out = lstm_out[:, -1, :]
-        out = self.dropout(last_out)
-        out = self.fc(out)
-        return out
 
 
 class ModelService:
@@ -90,11 +55,14 @@ class ModelService:
             arch = self._metadata["model_architecture"]
             
             # Crear modelo con arquitectura correcta
+            data_config = self._metadata.get("data", {})
+            horizon = data_config.get("horizon", 6)
             self._model = LSTMModel(
                 input_size=arch["input_size"],
                 hidden_size=arch["hidden_size"],
                 num_layers=arch["num_layers"],
-                dropout=arch["dropout"]
+                dropout=arch["dropout"],
+                output_size=horizon
             )
             
             # Cargar state dict
@@ -238,7 +206,8 @@ class ModelService:
                     "mape": regression_metrics.get("MAPE"),
                     "precision": classification_metrics.get("precision"),
                     "recall": classification_metrics.get("recall"),
-                    "f1_score": classification_metrics.get("f1_score")
+                    "f1_score": classification_metrics.get("f1_score"),
+                    "f2_score": classification_metrics.get("f2_score")
                 }
             
             return lstm_info

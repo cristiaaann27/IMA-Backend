@@ -21,7 +21,7 @@ from .train_xgboost import (
 from .evaluate import evaluate_model, calculate_regression_metrics, calculate_classification_metrics
 
 # Predicción unificada
-from .predictor import UnifiedPredictor, predict, ModelType
+from .predictor import UnifiedPredictor, HybridPredictor, predict, ModelType
 
 __all__ = [
     # Clase base
@@ -47,6 +47,7 @@ __all__ = [
     
     # Predicción
     "UnifiedPredictor",
+    "HybridPredictor",
     "predict",
     "ModelType"
 ]

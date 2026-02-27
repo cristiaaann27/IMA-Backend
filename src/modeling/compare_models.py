@@ -95,14 +95,15 @@ def compare_metrics(models: Dict, output_dir: Path, data_dict: Dict = None):
     
     # Crear tabla comparativa
     comparison = {
-        'Métrica': ['MAE', 'RMSE', 'R²', 'Precision', 'Recall', 'F1-Score'],
+        'Métrica': ['MAE', 'RMSE', 'R²', 'Precision', 'Recall', 'F1-Score', 'F2-Score'],
         'LSTM': [
             lstm_metrics.get('mae') if lstm_metrics.get('mae') is not None else 'N/A',
             lstm_metrics.get('rmse') if lstm_metrics.get('rmse') is not None else 'N/A',
             lstm_metrics.get('r2') if lstm_metrics.get('r2') is not None else 'N/A',
             lstm_metrics.get('precision') if lstm_metrics.get('precision') is not None else 'N/A',
             lstm_metrics.get('recall') if lstm_metrics.get('recall') is not None else 'N/A',
-            lstm_metrics.get('f1_score') if lstm_metrics.get('f1_score') is not None else 'N/A'
+            lstm_metrics.get('f1_score') if lstm_metrics.get('f1_score') is not None else 'N/A',
+            lstm_metrics.get('f2_score') if lstm_metrics.get('f2_score') is not None else 'N/A'
         ],
         'XGBoost': [
             xgb_metrics.get('mae', 'N/A'),
@@ -110,7 +111,8 @@ def compare_metrics(models: Dict, output_dir: Path, data_dict: Dict = None):
             xgb_metrics.get('r2', 'N/A'),
             xgb_metrics.get('precision', 'N/A'),
             xgb_metrics.get('recall', 'N/A'),
-            xgb_metrics.get('f1_score', 'N/A')
+            xgb_metrics.get('f1_score', 'N/A'),
+            xgb_metrics.get('f2_score', 'N/A')
         ]
     }
     
@@ -150,7 +152,7 @@ def evaluate_lstm_on_the_fly(models: Dict, data_dict: Dict) -> Dict:
         
         if not all([model_path.exists(), metadata_path.exists(), scaler_path.exists()]):
             logger.warning("Archivos del modelo LSTM no encontrados")
-            return {'mae': None, 'rmse': None, 'r2': None, 'precision': None, 'recall': None, 'f1_score': None}
+            return {'mae': None, 'rmse': None, 'r2': None, 'precision': None, 'recall': None, 'f1_score': None, 'f2_score': None}
         
         # Cargar metadata y scalers
         import json
@@ -162,11 +164,14 @@ def evaluate_lstm_on_the_fly(models: Dict, data_dict: Dict) -> Dict:
         
         # Crear y cargar modelo
         arch = metadata['model_architecture']
+        data_config = metadata.get('data', {})
+        horizon = data_config.get('horizon', 6)
         model = LSTMModel(
             input_size=arch['input_size'],
             hidden_size=arch['hidden_size'],
             num_layers=arch['num_layers'],
-            dropout=arch.get('dropout', 0.2)
+            dropout=arch.get('dropout', 0.2),
+            output_size=horizon
         )
         
         import torch
@@ -187,7 +192,7 @@ def evaluate_lstm_on_the_fly(models: Dict, data_dict: Dict) -> Dict:
         y_pred = np.maximum(y_pred, 0)
         
         # Calcular métricas
-        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, precision_recall_fscore_support
+        from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, precision_recall_fscore_support, fbeta_score
         
         mae = mean_absolute_error(y_test, y_pred)
         rmse = np.sqrt(mean_squared_error(y_test, y_pred))
@@ -202,7 +207,9 @@ def evaluate_lstm_on_the_fly(models: Dict, data_dict: Dict) -> Dict:
             y_test_binary, y_pred_binary, average='binary', zero_division=0
         )
         
-        logger.info(f"✓ LSTM evaluado: MAE={mae:.4f}, RMSE={rmse:.4f}, R²={r2:.4f}, F1={f1:.4f}")
+        f2 = fbeta_score(y_test_binary, y_pred_binary, beta=2, zero_division=0)
+        
+        logger.info(f"✓ LSTM evaluado: MAE={mae:.4f}, RMSE={rmse:.4f}, R²={r2:.4f}, F1={f1:.4f}, F2={f2:.4f}")
         
         return {
             'mae': float(mae),
@@ -210,12 +217,13 @@ def evaluate_lstm_on_the_fly(models: Dict, data_dict: Dict) -> Dict:
             'r2': float(r2),
             'precision': float(precision),
             'recall': float(recall),
-            'f1_score': float(f1)
+            'f1_score': float(f1),
+            'f2_score': float(f2)
         }
         
     except Exception as e:
         logger.error(f"Error evaluando LSTM: {e}", exc_info=True)
-        return {'mae': None, 'rmse': None, 'r2': None, 'precision': None, 'recall': None, 'f1_score': None}
+        return {'mae': None, 'rmse': None, 'r2': None, 'precision': None, 'recall': None, 'f1_score': None, 'f2_score': None}
 
 
 def main():
