@@ -45,7 +45,7 @@ def _train_lstm_trial(
     device: str,
     seed: int = 42,
 ) -> float:
-    """Entrena LSTM con hiperparámetros sugeridos por Optuna. Retorna val RMSE."""
+    """Entrena LSTM con hiperparámetros sugeridos por Optuna. Retorna val RMSE en escala original (mm/hr)."""
 
     hidden_size = trial.suggest_categorical("lstm_hidden_size", [32, 64, 128])
     num_layers = trial.suggest_int("lstm_num_layers", 1, 3)
@@ -54,6 +54,8 @@ def _train_lstm_trial(
     batch_size = trial.suggest_categorical("lstm_batch_size", [32, 64, 128])
 
     set_global_seed(seed)
+
+    scaler_y = data_dict["scaler_y"]
 
     train_dataset = TimeSeriesDataset(data_dict["X_train"], data_dict["y_train"])
     val_dataset = TimeSeriesDataset(data_dict["X_val"], data_dict["y_val"])
@@ -89,7 +91,7 @@ def _train_lstm_trial(
             loss.backward()
             optimizer.step()
 
-        # Val
+        # Val (loss normalizada para pruning / early stopping)
         model.eval()
         val_losses = []
         with torch.no_grad():
@@ -112,7 +114,24 @@ def _train_lstm_trial(
             if patience_counter >= patience:
                 break
 
-    return float(np.sqrt(best_val_loss))
+    # Des-escalar predicciones y targets para calcular RMSE en escala original (mm/hr)
+    model.eval()
+    all_preds, all_targets = [], []
+    with torch.no_grad():
+        for X_b, y_b in val_loader:
+            X_b = X_b.to(device)
+            preds = model(X_b).cpu().numpy()
+            all_preds.append(preds)
+            all_targets.append(y_b.numpy())
+
+    y_pred_scaled = np.concatenate(all_preds, axis=0)
+    y_true_scaled = np.concatenate(all_targets, axis=0)
+
+    y_pred_orig = scaler_y.inverse_transform(y_pred_scaled)
+    y_true_orig = scaler_y.inverse_transform(y_true_scaled)
+
+    rmse = float(np.sqrt(np.mean((y_true_orig - y_pred_orig) ** 2)))
+    return rmse
 
 
 def _train_xgb_trial(

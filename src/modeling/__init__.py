@@ -20,6 +20,9 @@ from .train_xgboost import (
 # Evaluación
 from .evaluate import evaluate_model, calculate_regression_metrics, calculate_classification_metrics
 
+# Ensemble (meta-learner)
+from .ensemble import StackedEnsemble
+
 # Predicción unificada
 from .predictor import UnifiedPredictor, HybridPredictor, predict, ModelType
 
@@ -44,6 +47,9 @@ __all__ = [
     "evaluate_model",
     "calculate_regression_metrics",
     "calculate_classification_metrics",
+    
+    # Ensemble
+    "StackedEnsemble",
     
     # Predicción
     "UnifiedPredictor",

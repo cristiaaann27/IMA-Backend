@@ -539,14 +539,25 @@ async def predict_hybrid(
 
         precip_xgb, _ = xgboost_service.predict(features)
 
-        # Combinar con pesos (defaults 0.5/0.5, leídos de config)
+        # Combinar predicciones: meta-learner (RidgeCV) si existe, sino promedio pesado
+        import pickle
+        from pathlib import Path as _Path
         from src.utils.hyperparams import get_ensemble_defaults
-        ens = get_ensemble_defaults()
-        w_lstm = ens.get("w_lstm", 0.5)
-        w_xgb = ens.get("w_xgboost", 0.5)
 
-        precip_pred = w_lstm * precip_lstm + w_xgb * precip_xgb
-        precip_pred = max(0.0, precip_pred)
+        meta_model_path = get_settings().models_dir / "ensemble_meta.pkl"
+        if meta_model_path.exists():
+            with open(meta_model_path, "rb") as _f:
+                meta_model = pickle.load(_f)
+            X_meta = np.array([[precip_lstm, precip_xgb]])
+            precip_pred = max(0.0, float(meta_model.predict(X_meta)[0]))
+            logger.debug(f"Hybrid via meta-learner: lstm={precip_lstm:.4f} xgb={precip_xgb:.4f} -> {precip_pred:.4f}")
+        else:
+            ens = get_ensemble_defaults()
+            w_lstm = ens.get("w_lstm", 0.5)
+            w_xgb = ens.get("w_xgboost", 0.5)
+            precip_pred = w_lstm * precip_lstm + w_xgb * precip_xgb
+            precip_pred = max(0.0, precip_pred)
+            logger.debug(f"Hybrid via promedio pesado: lstm={precip_lstm:.4f} xgb={precip_xgb:.4f} -> {precip_pred:.4f}")
 
         # Probabilidad de lluvia sobre la predicción combinada
         from app.services.feature_utils import calculate_rain_probability
