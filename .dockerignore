@@ -41,8 +41,10 @@ tests/
 # AWS
 *.pem
 
-# Reports (optional, keep if needed)
-reports/*.log
+# Data & Models (mounted as volumes in production)
+data/
+models/
+reports/
 
 # Railway
 railway.json
@@ -54,5 +56,11 @@ nginx/
 
 # Scripts
 setup-ec2.sh
+setup-self-signed-ssl.sh
+setup-duckdns.sh
 deploy.sh
 train.sh
+DEPLOY.txt
+
+# Plans
+.windsurf/

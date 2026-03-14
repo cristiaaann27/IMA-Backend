@@ -1,65 +1,117 @@
-DESPLIEGUE BACKEND EN EC2
-=========================
+DESPLIEGUE BACKEND EN EC2 (Free Tier)
+======================================
 
+PREREQUISITOS:
+  - Instancia EC2 t2.micro o t3.micro (Ubuntu)
+  - Security Group con puertos 22, 80, 443 abiertos
+  - Subdominio en https://www.duckdns.org/domains (opcional)
+
+========================================
 1. CONFIGURACIÓN INICIAL EC2 (solo primera vez):
+========================================
    chmod +x setup-ec2.sh
    ./setup-ec2.sh
-   # Cerrar sesión y volver a entrar
+   # Esto instala: Docker, Compose v2, swap 2GB, firewall UFW
+   # IMPORTANTE: Cerrar sesión y volver a entrar (permisos Docker)
 
+========================================
 2. CLONAR REPOSITORIO:
-   git clone <tu-repo>
-   cd proyecto
+========================================
+   git clone <tu-repo> ~/proyecto
+   cd ~/proyecto
 
+========================================
 3. CONFIGURAR VARIABLES DE ENTORNO:
+========================================
    cp .env.example .env
    nano .env
-   # Editar ALLOWED_ORIGINS con tu dominio
+   # Cambiar API_KEY y ALLOWED_ORIGINS obligatoriamente
 
-4. SUBIR DATOS Y MODELOS:
+========================================
+4. CONFIGURAR DUCKDNS (opcional, recomendado):
+========================================
+   chmod +x setup-duckdns.sh
+   ./setup-duckdns.sh
+   # Pide subdominio y token, configura cron + nginx automáticamente
+
+========================================
+5. GENERAR CERTIFICADO SSL:
+========================================
+   chmod +x setup-self-signed-ssl.sh
+   ./setup-self-signed-ssl.sh
+
+========================================
+6. SUBIR DATOS Y MODELOS (desde tu máquina local):
+========================================
    # Copiar datos raw para entrenamiento
-   scp -i ima.pem data/raw/*.csv ubuntu@<ip-ec2>:~/proyecto/data/raw/
+   scp -i ima.pem data/raw/*.csv ubuntu@<ip-ec2>:~/data/raw/
    
    # Copiar modelos pre-entrenados (si existen)
-   scp -i ima.pem models/* ubuntu@<ip-ec2>:~/proyecto/models/
+   scp -i ima.pem models/* ubuntu@<ip-ec2>:~/models/
 
-5. DESPLEGAR:
+========================================
+7. DESPLEGAR:
+========================================
    chmod +x deploy.sh
    ./deploy.sh
 
-6. VERIFICAR:
-   docker-compose ps
-   docker-compose logs -f
+========================================
+8. VERIFICAR:
+========================================
+   docker compose ps
+   docker compose logs -f
+   curl -k https://localhost/api/v1/health
 
-7. COMANDOS ÚTILES:
+========================================
+9. COMANDOS ÚTILES:
+========================================
    # Ver logs
-   docker-compose logs -f backend
-   docker-compose logs -f nginx
+   docker compose logs -f backend
+   docker compose logs -f nginx
    
    # Reiniciar servicios
-   docker-compose restart
+   docker compose restart
    
    # Detener servicios
-   docker-compose down
+   docker compose down
    
    # Actualizar código
    git pull
    ./deploy.sh
+   
+   # Ver uso de memoria (importante en Free Tier)
+   docker stats --no-stream
+   free -h
 
-8. ENTRENAR MODELOS:
+========================================
+10. ENTRENAR MODELOS:
+========================================
    # Opción 1: Usar script interactivo (recomendado)
    chmod +x train.sh
    ./train.sh
    
    # Opción 2: Comandos directos
-   docker-compose exec backend python -m src all              # Pipeline completo
-   docker-compose exec backend python -m src etl              # Solo ETL
-   docker-compose exec backend python -m src features         # Solo features
-   docker-compose exec backend python -m src train-lstm       # Solo LSTM
-   docker-compose exec backend python -m src train-xgboost    # Solo XGBoost
+   docker compose exec backend python -m src all              # Pipeline completo
+   docker compose exec backend python -m src etl              # Solo ETL
+   docker compose exec backend python -m src features         # Solo features
+   docker compose exec backend python -m src train-lstm       # Solo LSTM
+   docker compose exec backend python -m src train-xgboost    # Solo XGBoost
    
    # Opción 3: Modo interactivo
-   docker-compose exec backend bash
+   docker compose exec backend bash
    python -m src all
    exit
 
-API disponible en: http://<ip-ec2>
+========================================
+ORDEN COMPLETO DE DESPLIEGUE (primera vez):
+========================================
+   1. setup-ec2.sh       -> Docker, swap, firewall
+   2. logout/login        -> Permisos Docker
+   3. git clone + cd      -> Clonar repo
+   4. cp .env.example .env -> Variables de entorno
+   5. setup-duckdns.sh   -> DNS dinámico (opcional)
+   6. setup-self-signed-ssl.sh -> Certificado SSL
+   7. Subir datos/modelos -> scp desde local
+   8. deploy.sh           -> Build y levantar servicios
+
+API disponible en: https://<tu-subdominio>.duckdns.org/api/v1
