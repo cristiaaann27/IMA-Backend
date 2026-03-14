@@ -7,8 +7,9 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
+    cpus: "0.85"        # deja ~15% para nginx y el OS en t2.micro (1 vCPU)
     mem_limit: 768m
-    memswap_limit: 1024m
+    memswap_limit: 1024m  # permite hasta 256m de swap (1024 - 768)
     volumes:
       - ~/models:/app/models
       - ~/data:/app/data
@@ -16,7 +17,9 @@ services:
     environment:
       - ENVIRONMENT=production
       - API_PREFIX=/api/v1
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://ima.up.railway.app}
+      # ADVERTENCIA: asegúrate de definir ALLOWED_ORIGINS en .env con tu dominio DuckDNS
+      # Ej: ALLOWED_ORIGINS=https://tu-subdominio.duckdns.org
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
     env_file:
       - .env
     networks:
@@ -38,6 +41,7 @@ services:
     container_name: precipitation-nginx
     restart: unless-stopped
     mem_limit: 64m
+    memswap_limit: 64m  # sin swap para nginx
     ports:
       - "80:80"
       - "443:443"
@@ -45,10 +49,10 @@ services:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - /etc/nginx/ssl:/etc/nginx/ssl:ro
-      - /var/www/certbot:/var/www/certbot:ro
+      # Volumen de Certbot comentado — activar solo si migras a Let's Encrypt
+      # - /var/www/certbot:/var/www/certbot:ro
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend  # arranca después del backend, pero sin bloquearse si el healthcheck falla
     networks:
       - precipitation-network
     logging:

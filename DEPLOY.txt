@@ -28,20 +28,23 @@ PREREQUISITOS:
    # Cambiar API_KEY y ALLOWED_ORIGINS obligatoriamente
 
 ========================================
-4. CONFIGURAR DUCKDNS (opcional, recomendado):
+4. CONFIGURAR DUCKDNS + SSL (opcional, recomendado):
 ========================================
    chmod +x setup-duckdns.sh
    ./setup-duckdns.sh
-   # Pide subdominio y token, configura cron + nginx automáticamente
+   # Pide subdominio y token, configura cron + nginx + genera certificado SSL
+
+   # Si NO usas DuckDNS, genera el certificado manualmente:
+   EC2_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+   sudo mkdir -p /etc/nginx/ssl
+   sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+       -keyout /etc/nginx/ssl/selfsigned.key \
+       -out /etc/nginx/ssl/selfsigned.crt \
+       -subj "/C=CO/ST=State/L=City/O=IMA/CN=${EC2_IP}" \
+       -addext "subjectAltName=IP:${EC2_IP}"
 
 ========================================
-5. GENERAR CERTIFICADO SSL:
-========================================
-   chmod +x setup-self-signed-ssl.sh
-   ./setup-self-signed-ssl.sh
-
-========================================
-6. SUBIR DATOS Y MODELOS (desde tu máquina local):
+5. SUBIR DATOS Y MODELOS (desde tu máquina local):
 ========================================
    # Copiar datos raw para entrenamiento
    scp -i ima.pem data/raw/*.csv ubuntu@<ip-ec2>:~/data/raw/
@@ -50,20 +53,20 @@ PREREQUISITOS:
    scp -i ima.pem models/* ubuntu@<ip-ec2>:~/models/
 
 ========================================
-7. DESPLEGAR:
+6. DESPLEGAR:
 ========================================
    chmod +x deploy.sh
    ./deploy.sh
 
 ========================================
-8. VERIFICAR:
+7. VERIFICAR:
 ========================================
    docker compose ps
    docker compose logs -f
    curl -k https://localhost/api/v1/health
 
 ========================================
-9. COMANDOS ÚTILES:
+8. COMANDOS ÚTILES:
 ========================================
    # Ver logs
    docker compose logs -f backend
@@ -84,7 +87,7 @@ PREREQUISITOS:
    free -h
 
 ========================================
-10. ENTRENAR MODELOS:
+9. ENTRENAR MODELOS:
 ========================================
    # Opción 1: Usar script interactivo (recomendado)
    chmod +x train.sh
@@ -109,9 +112,8 @@ ORDEN COMPLETO DE DESPLIEGUE (primera vez):
    2. logout/login        -> Permisos Docker
    3. git clone + cd      -> Clonar repo
    4. cp .env.example .env -> Variables de entorno
-   5. setup-duckdns.sh   -> DNS dinámico (opcional)
-   6. setup-self-signed-ssl.sh -> Certificado SSL
-   7. Subir datos/modelos -> scp desde local
-   8. deploy.sh           -> Build y levantar servicios
+   5. setup-duckdns.sh   -> DNS dinámico + SSL (o generar cert manual)
+   6. Subir datos/modelos -> scp desde local
+   7. deploy.sh           -> Build y levantar servicios
 
 API disponible en: https://<tu-subdominio>.duckdns.org/api/v1

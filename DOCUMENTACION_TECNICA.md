@@ -172,7 +172,7 @@ IMA-Backend/
 ├── train.sh                      # Script de entrenamiento
 ├── deploy.sh                     # Script de despliegue
 ├── setup-ec2.sh                  # Script de configuración EC2
-└── setup-self-signed-ssl.sh      # Script SSL auto-firmado
+└── setup-duckdns.sh              # Script DuckDNS + SSL auto-firmado
 ```
 
 ---
@@ -1673,7 +1673,7 @@ Internet --> Nginx (80/443) --> Backend (8000) --> Modelos (disco)
 |--------|----------|
 | `deploy.sh` | Despliegue general (build + up) |
 | `setup-ec2.sh` | Configuracion de instancia EC2 (Docker, permisos, directorios) |
-| `setup-self-signed-ssl.sh` | Generacion de certificados SSL auto-firmados para desarrollo |
+| `setup-duckdns.sh` | Configuracion DuckDNS (DNS dinamico + cron + SSL auto-firmado + nginx) |
 | `train.sh` | Entrenamiento completo del pipeline en servidor |
 
 ### 14.3 Variables de Entorno de Produccion

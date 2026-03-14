@@ -56,7 +56,6 @@ nginx/
 
 # Scripts
 setup-ec2.sh
-setup-self-signed-ssl.sh
 setup-duckdns.sh
 deploy.sh
 train.sh
