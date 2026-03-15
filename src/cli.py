@@ -6,7 +6,7 @@ import pickle
 from pathlib import Path
 from typing import Callable
 
-from .utils import Config, setup_logger, load_dataframe, get_lstm_defaults
+from .utils import Config, setup_logger, load_dataframe, get_lstm_defaults, get_effective_lstm_params, get_effective_xgboost_params
 from .etl import run_etl_pipeline
 from .features import build_features
 from .modeling.train_lstm import prepare_data, train_model, save_model
@@ -306,6 +306,7 @@ def cmd_all(args):
     steps = [
         ("ETL", cmd_etl),
         ("Features", cmd_features),
+        ("Tune (Optuna)", cmd_tune),
         ("Train LSTM", cmd_train_lstm),
         ("Train XGBoost", cmd_train_xgboost),
         ("Eval LSTM", cmd_eval_lstm),
@@ -353,8 +354,8 @@ def main():
     parser_features.add_argument("--rolling-windows", type=int, nargs="+", help="Ventanas móviles personalizadas")
     parser_features.set_defaults(func=cmd_features)
     
-    # Comando Train LSTM (defaults desde configs/hyperparameters.json)
-    hp = get_lstm_defaults()
+    # Comando Train LSTM (defaults desde best_hyperparams.json > hyperparameters.json)
+    hp = get_effective_lstm_params()
     parser_train = subparsers.add_parser("train-lstm", help="Entrenar modelo LSTM")
     parser_train.add_argument("--hidden", type=int, default=hp.get("hidden_size", 64), help="Tamaño de capa oculta")
     parser_train.add_argument("--layers", type=int, default=hp.get("num_layers", 2), help="Número de capas LSTM")
@@ -429,6 +430,8 @@ def main():
     parser_all.add_argument("--train-split", type=float, default=0.7, help="Proporción de train")
     parser_all.add_argument("--val-split", type=float, default=0.15, help="Proporción de validación")
     parser_all.add_argument("--test-split", type=float, default=0.15, help="Proporción de test")
+    parser_all.add_argument("--trials", type=int, default=30, help="Número de trials de Optuna")
+    parser_all.add_argument("--timeout", type=int, default=None, help="Timeout de Optuna en segundos")
     parser_all.add_argument("--input", help="Archivo de predicciones para diagnóstico (opcional)")
     parser_all.add_argument("--export", help="Ruta de exportación de diagnóstico (opcional)")
     parser_all.set_defaults(func=cmd_all)

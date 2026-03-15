@@ -13,7 +13,7 @@ fi
 # Menú de opciones
 echo ""
 echo "Selecciona una opción:"
-echo "1) Pipeline completo (ETL + Features + Train LSTM + XGBoost)"
+echo "1) Pipeline completo (ETL + Features + Optuna + Train LSTM + XGBoost)"
 echo "2) Solo ETL"
 echo "3) Solo Features"
 echo "4) Solo entrenar LSTM"
@@ -21,7 +21,8 @@ echo "5) Solo entrenar XGBoost"
 echo "6) Evaluar LSTM"
 echo "7) Comparar modelos"
 echo "8) Generar predicciones"
-echo "9) Acceder al contenedor (modo interactivo)"
+echo "9) Optuna - Búsqueda de hiperparámetros"
+echo "10) Acceder al contenedor (modo interactivo)"
 echo ""
 read -p "Opción: " option
 
@@ -59,6 +60,10 @@ case $option in
         docker compose exec backend python -m src predict
         ;;
     9)
+        echo "Ejecutando búsqueda de hiperparámetros con Optuna..."
+        docker compose exec backend python -m src tune
+        ;;
+    10)
         echo "Accediendo al contenedor..."
         docker compose exec backend bash
         ;;
