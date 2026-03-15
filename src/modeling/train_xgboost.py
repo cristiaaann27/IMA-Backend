@@ -110,21 +110,21 @@ def train_xgboost_model(
         'objective': 'reg:squarederror',
         'eval_metric': 'rmse',
         'random_state': 42,
-        'n_jobs': -1
+        'n_jobs': -1,
+        'early_stopping_rounds': 10
     }
     
     if params:
         default_params.update(params)
     
-    # Crear modelo
+    # Crear modelo (early_stopping_rounds va en el constructor desde XGBoost 2.0+)
     model = xgb.XGBRegressor(**default_params)
     
     # Entrenar con early stopping
     model.fit(
         X_train, y_train,
         eval_set=[(X_val, y_val)],
-        verbose=10,
-        early_stopping_rounds=10
+        verbose=10
     )
     
     logger.info("✓ Modelo XGBoost entrenado")
