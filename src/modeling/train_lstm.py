@@ -1,5 +1,6 @@
 """Entrenamiento de modelo LSTM para predicción de precipitación."""
 
+import gc
 import json
 import pickle
 from pathlib import Path
@@ -109,14 +110,20 @@ def create_sequences(
         X_seq: (n_sequences, lookback, n_features)
         y_seq: (n_sequences, horizon)
     """
-    X_seq, y_seq = [], []
+    # Convertir a float32 para reducir memoria (~50% menos, crítico en Free Tier)
+    X = X.astype(np.float32)
+    y = y.astype(np.float32).ravel()
     
-    for i in range(len(X) - lookback - horizon + 1):
-        X_seq.append(X[i:i + lookback])
-        y_seq.append(y[i + lookback:i + lookback + horizon])
+    n_seq = len(X) - lookback - horizon + 1
+    n_features = X.shape[1]
     
-    X_seq = np.array(X_seq)
-    y_seq = np.array(y_seq)
+    # Pre-allocar arrays en lugar de append en loop (evita duplicar memoria)
+    X_seq = np.empty((n_seq, lookback, n_features), dtype=np.float32)
+    y_seq = np.empty((n_seq, horizon), dtype=np.float32)
+    
+    for i in range(n_seq):
+        X_seq[i] = X[i:i + lookback]
+        y_seq[i] = y[i + lookback:i + lookback + horizon]
     
     # Asegurar que y_seq tenga la forma correcta (n_sequences, horizon)
     if y_seq.ndim == 1:
@@ -187,22 +194,30 @@ def prepare_data(
     
     logger.info(f"Split temporal: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}")
     
-    # Escalado
+    # Escalado (convertir a float32 inmediatamente para ahorrar memoria en Free Tier)
     scaler_X = StandardScaler()
     scaler_y = StandardScaler()
     
-    X_train = sanitize_scaled(scaler_X.fit_transform(X_train))
-    X_val = sanitize_scaled(scaler_X.transform(X_val))
-    X_test = sanitize_scaled(scaler_X.transform(X_test))
+    X_train = sanitize_scaled(scaler_X.fit_transform(X_train)).astype(np.float32)
+    X_val = sanitize_scaled(scaler_X.transform(X_val)).astype(np.float32)
+    X_test = sanitize_scaled(scaler_X.transform(X_test)).astype(np.float32)
     
-    y_train = sanitize_scaled(scaler_y.fit_transform(y_train))
-    y_val = sanitize_scaled(scaler_y.transform(y_val))
-    y_test = sanitize_scaled(scaler_y.transform(y_test))
+    y_train = sanitize_scaled(scaler_y.fit_transform(y_train)).astype(np.float32)
+    y_val = sanitize_scaled(scaler_y.transform(y_val)).astype(np.float32)
+    y_test = sanitize_scaled(scaler_y.transform(y_test)).astype(np.float32)
     
-    # Crear secuencias
+    # Crear secuencias (una a la vez para reducir pico de memoria)
+    logger.info("Creando secuencias de entrenamiento...")
     X_train_seq, y_train_seq = create_sequences(X_train, y_train, lookback, horizon)
+    del X_train, y_train; gc.collect()
+    
+    logger.info("Creando secuencias de validación...")
     X_val_seq, y_val_seq = create_sequences(X_val, y_val, lookback, horizon)
+    del X_val, y_val; gc.collect()
+    
+    logger.info("Creando secuencias de test...")
     X_test_seq, y_test_seq = create_sequences(X_test, y_test, lookback, horizon)
+    del X_test, y_test; gc.collect()
     
     logger.info(
         f"Secuencias creadas: train={len(X_train_seq)}, "

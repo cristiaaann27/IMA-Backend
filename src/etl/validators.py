@@ -2,8 +2,8 @@
 
 import pandas as pd
 import numpy as np
-import pandera as pa
-from pandera import Column, Check, Index
+import pandera.pandas as pa
+from pandera.pandas import Column, Check, Index
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 

@@ -29,7 +29,8 @@ WORKDIR /app
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/deps
+    PYTHONPATH=/app/deps \
+    PATH="/app/deps/bin:${PATH}"
 
 # Solo curl para healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -37,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Crear usuario no-root antes de copiar archivos
-RUN useradd -m -u 1001 appuser
+RUN useradd -m -u 1000 appuser
 
 # Copiar dependencias pre-compiladas desde builder a ruta propia
 # Evita mezclar con site-packages del sistema y es más robusto ante cambios de la imagen base
