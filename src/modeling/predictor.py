@@ -192,10 +192,19 @@ class UnifiedPredictor:
         y_pred = scaler_y.inverse_transform(y_pred_scaled)
         y_pred = np.maximum(y_pred, 0)  # No negativos
         
+        # Usar primera predicción del horizonte (h+1) para cada secuencia
+        # y_pred shape: (n_sequences, horizon) → tomar columna 0
+        y_pred_h1 = y_pred[:, 0] if y_pred.ndim == 2 else y_pred.ravel()
+        
         # Crear DataFrame
         pred_df = pd.DataFrame({
-            "precip_pred_mm_hr": y_pred.ravel()
+            "precip_pred_mm_hr": y_pred_h1
         })
+        
+        # Añadir todas las predicciones del horizonte como columnas adicionales
+        if y_pred.ndim == 2 and y_pred.shape[1] > 1:
+            for h in range(y_pred.shape[1]):
+                pred_df[f"precip_pred_h{h+1}"] = y_pred[:, h]
         
         # Añadir timestamp
         if timestamps is not None:
