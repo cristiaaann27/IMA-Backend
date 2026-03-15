@@ -7,9 +7,8 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
-    cpus: "0.85"        # deja ~15% para nginx y el OS en t2.micro (1 vCPU)
-    mem_limit: 768m
-    memswap_limit: 1024m  # permite hasta 256m de swap (1024 - 768)
+    mem_limit: 4g
+    memswap_limit: 5g  # permite hasta 1g de swap (5 - 4)
     volumes:
       - ~/models:/app/models
       - ~/data:/app/data
