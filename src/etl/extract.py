@@ -117,7 +117,7 @@ def identify_variable_from_filename(filename: str) -> Optional[str]:
 class FileReader:
     """Lector de archivos de variables meteorológicas."""
     
-    def __init__(self, skip_rows: int = 9, delimiter: str = ";"):
+    def __init__(self, skip_rows: int = 9, delimiter: str = ","):
         """
         Inicializa el lector.
         
@@ -263,7 +263,7 @@ class FileReader:
 class DataExtractor:
     """Extractor principal de datos meteorológicos."""
     
-    def __init__(self, skip_rows: int = 9, delimiter: str = ";"):
+    def __init__(self, skip_rows: int = 9, delimiter: str = ","):
         """
         Inicializa el extractor.
         

@@ -25,7 +25,7 @@ class ETLPipeline:
     def __init__(
         self,
         skip_rows: int = 9,
-        delimiter: str = ";"
+        delimiter: str = ","
     ):
         """
         Inicializa el pipeline ETL.
@@ -149,7 +149,7 @@ class ETLPipeline:
 
 
 def run_etl_pipeline(
-    delimiter: str = ";",
+    delimiter: str = ",",
     skip_rows: int = 9,
     fill_gaps: bool = True,
     archive_raw: bool = True
@@ -170,7 +170,7 @@ def run_etl_pipeline(
     return pipeline.run(fill_gaps=fill_gaps, archive_raw=archive_raw)
 
 
-def extract_only(delimiter: str = ";", skip_rows: int = 9) -> Dict[str, pd.DataFrame]:
+def extract_only(delimiter: str = ",", skip_rows: int = 9) -> Dict[str, pd.DataFrame]:
     """
     Solo ejecuta la etapa de extracción.
     

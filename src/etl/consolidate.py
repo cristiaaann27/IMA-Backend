@@ -120,7 +120,7 @@ def read_variable_file(
     path: Path,
     var_name: str,
     skip_rows: int = 9,
-    delimiter: str = ";"
+    delimiter: str = ","
 ) -> pd.DataFrame:
     """
     Lee un archivo de variable meteorológica.

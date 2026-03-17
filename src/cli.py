@@ -343,7 +343,7 @@ def main():
     
     # Comando ETL
     parser_etl = subparsers.add_parser("etl", help="Ejecutar pipeline ETL")
-    parser_etl.add_argument("--delimiter", default=";", help="Delimitador de archivos")
+    parser_etl.add_argument("--delimiter", default=",", help="Delimitador de archivos")
     parser_etl.add_argument("--skip-rows", type=int, default=9, help="Filas de metadatos a saltar")
     parser_etl.set_defaults(func=cmd_etl)
     
@@ -412,7 +412,7 @@ def main():
     
     # Comando All
     parser_all = subparsers.add_parser("all", help="Ejecutar pipeline completo")
-    parser_all.add_argument("--delimiter", default=";", help="Delimitador de archivos")
+    parser_all.add_argument("--delimiter", default=",", help="Delimitador de archivos")
     parser_all.add_argument("--skip-rows", type=int, default=9, help="Filas de metadatos a saltar")
     parser_all.add_argument("--keep-wind-10m", action="store_true", help="Mantener variables de viento a 10m")
     parser_all.add_argument("--lags", type=int, nargs="+", help="Lags personalizados")
