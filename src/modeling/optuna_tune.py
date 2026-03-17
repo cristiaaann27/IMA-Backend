@@ -51,7 +51,7 @@ def _train_lstm_trial(
     num_layers = trial.suggest_int("lstm_num_layers", 1, 3)
     dropout = trial.suggest_float("lstm_dropout", 0.0, 0.5, step=0.1)
     lr = trial.suggest_float("lstm_lr", 1e-4, 1e-2, log=True)
-    batch_size = trial.suggest_categorical("lstm_batch_size", [32, 64, 128])
+    batch_size = trial.suggest_categorical("lstm_batch_size", [256, 512, 1024])
 
     set_global_seed(seed)
 
@@ -76,8 +76,8 @@ def _train_lstm_trial(
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
-    epochs = 30
-    patience = 7
+    epochs = 10
+    patience = 3
     best_val_loss = float("inf")
     patience_counter = 0
 
@@ -90,6 +90,8 @@ def _train_lstm_trial(
             loss = criterion(model(X_b), y_b)
             loss.backward()
             optimizer.step()
+
+        logger.info(f"  Trial {trial.number} - Epoch [{epoch+1}/{epochs}]")
 
         # Val (loss normalizada para pruning / early stopping)
         model.eval()
