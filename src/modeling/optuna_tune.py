@@ -230,6 +230,19 @@ def run_tuning(
         data_dict["X_val"] = data_dict["X_val"][idx]
         data_dict["y_val"] = data_dict["y_val"][idx]
 
+    # Subsamplear secuencias LSTM para tuning (máx 20K train, 5K val)
+    max_train_seq = 20000
+    max_val_seq = 5000
+    if data_dict["X_train"].shape[0] > max_train_seq:
+        logger.info(f"Subsampleando LSTM: {data_dict['X_train'].shape[0]} → {max_train_seq} secuencias de train")
+        idx = np.linspace(0, data_dict["X_train"].shape[0] - 1, max_train_seq, dtype=int)
+        data_dict["X_train"] = data_dict["X_train"][idx]
+        data_dict["y_train"] = data_dict["y_train"][idx]
+    if data_dict["X_val"].shape[0] > max_val_seq:
+        idx = np.linspace(0, data_dict["X_val"].shape[0] - 1, max_val_seq, dtype=int)
+        data_dict["X_val"] = data_dict["X_val"][idx]
+        data_dict["y_val"] = data_dict["y_val"][idx]
+
     # Preparar datos planos para XGBoost (sin secuencias)
     exclude_cols = ["timestamp", "precip_mm_hr"]
     feature_cols = [c for c in df.columns if c not in exclude_cols]
