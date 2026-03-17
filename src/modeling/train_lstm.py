@@ -244,8 +244,8 @@ def train_model(
     num_layers: int = 2,
     dropout: float = 0.2,
     learning_rate: float = 0.001,
-    epochs: int = 50,
-    batch_size: int = 64,
+    epochs: int = 30,
+    batch_size: int = 512,
     early_stopping_patience: int = 10,
     device: str = None,
     seed: int = 42
@@ -325,7 +325,8 @@ def train_model(
         model.train()
         train_losses = []
         
-        for X_batch, y_batch in train_loader:
+        n_batches = len(train_loader)
+        for batch_idx, (X_batch, y_batch) in enumerate(train_loader):
             X_batch = X_batch.to(device)
             y_batch = y_batch.to(device)
             
@@ -336,6 +337,12 @@ def train_model(
             optimizer.step()
             
             train_losses.append(loss.item())
+            
+            if (batch_idx + 1) % 500 == 0:
+                logger.info(
+                    f"  Epoch [{epoch+1}/{epochs}] Batch [{batch_idx+1}/{n_batches}] - "
+                    f"Loss: {loss.item():.6f}"
+                )
         
         avg_train_loss = np.mean(train_losses)
         
@@ -358,12 +365,11 @@ def train_model(
         history["train_loss"].append(avg_train_loss)
         history["val_loss"].append(avg_val_loss)
         
-        # Log cada 5 épocas
-        if (epoch + 1) % 5 == 0:
-            logger.info(
-                f"Epoch [{epoch+1}/{epochs}] - "
-                f"Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}"
-            )
+        # Log cada época
+        logger.info(
+            f"Epoch [{epoch+1}/{epochs}] - "
+            f"Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}"
+        )
         
         # Early stopping
         if avg_val_loss < history["best_val_loss"]:
